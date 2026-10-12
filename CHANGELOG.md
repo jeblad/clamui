@@ -1,10 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [0.4.1] - 2026-10-12
 
 ### Added
 
 - Added a **Start in System Tray** preference for login/autostart workflows while keeping explicit file and folder scans visible. (#221)
+- Added Hungarian localization.
+- Added an in-app Flatpak flow for installing the matching `clamui-privileged-helper` on supported Debian-family hosts; it validates the release asset before requesting administrator authorization.
 - Added regression coverage for privileged configuration read failures, mixed direct/elevated saves, staging cleanup, and direct-write filesystem rejection.
 
 ### Changed
@@ -26,6 +28,7 @@
 
 - Bundled GLib's desktop-launch helper in the AppImage so audit documentation links open on KDE and other non-Ubuntu host layouts. (#194)
 - Prevented large standalone full scans from being reported as failed when capped verbose output hid the final summary and only nonfatal ClamAV warnings remained. (#217)
+- Corrected Fedora `freshclam` installation guidance and made the availability probe independent of Fedora's root-only default configuration.
 - Preserved raw POSIX filename bytes for `clamscan`, daemon scans, and quarantine restore; reject newline-containing daemon file-list targets.
 - Used the installed scheduled-scan module path when generating Debian jobs.
 - Used the selected custom `freshclam.conf` for manual database updates.
@@ -62,7 +65,9 @@
 - Hardened privileged configuration writes with canonical helper and destination validation that fails closed.
 - Built scheduled scan commands from tokens and sanitized AppImage environments for every host helper.
 
-[Unreleased]: https://github.com/linx-systems/clamui/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/linx-systems/clamui/compare/v0.4.1...HEAD
+
+[0.4.1]: https://github.com/linx-systems/clamui/compare/v0.4.0...v0.4.1
 
 [0.4.0]: https://github.com/linx-systems/clamui/compare/v0.3.0...v0.4.0
 ## [0.3.0] - 2026-06-26

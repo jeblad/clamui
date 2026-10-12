@@ -12,14 +12,14 @@ const tabs = [
     label: "Debian / Ubuntu",
     sub: ".deb",
     desc: "Install the matching architecture-independent app and privileged-helper packages together.",
-    code: "# Download both files from one release, then set its version:\nVERSION=x.y.z\nsudo apt install \"./clamui_${VERSION}_all.deb\" \"./clamui-privileged-helper_${VERSION}_all.deb\"",
+    code: "# Download both files from one release, then install the current version:\nVERSION=0.4.1\nsudo apt install \"./clamui_${VERSION}_all.deb\" \"./clamui-privileged-helper_${VERSION}_all.deb\"",
   },
   {
     id: "appimage",
     label: "AppImage",
     sub: "Portable",
     desc: "Single-file UI bundle that uses ClamAV installed on the host.",
-    code: "VERSION=x.y.z\nchmod +x \"ClamUI-${VERSION}-x86_64.AppImage\"\n\"./ClamUI-${VERSION}-x86_64.AppImage\"",
+    code: "VERSION=0.4.1\nchmod +x \"ClamUI-${VERSION}-x86_64.AppImage\"\n\"./ClamUI-${VERSION}-x86_64.AppImage\"",
   },
   {
     id: "source",

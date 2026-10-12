@@ -67,10 +67,10 @@ ClamAV Database, Scanner, and On-Access preferences target host distribution con
 
 The full application package requires Python 3.11+; use it on stock Debian 12+, Ubuntu 24.04+, or a compatible newer distribution. Stock Ubuntu/Pop!_OS 22.04 provides Python 3.10, so use Flatpak there; its modern bundled runtime is independent of the host GTK and Python stack.
 
-Download matching release assets, set their release version, then install both:
+Download matching 0.4.1 release assets, then install both:
 
 ```bash
-VERSION="x.y.z"
+VERSION="0.4.1"
 sudo apt install "./clamui_${VERSION}_all.deb" "./clamui-privileged-helper_${VERSION}_all.deb"
 clamui
 ```
@@ -79,10 +79,10 @@ The application package is architecture-independent and declares GTK/PyGObject r
 
 ## AppImage
 
-Set the release version for the AppImage downloaded from [GitHub Releases](https://github.com/linx-systems/clamui/releases):
+Set the current release version for the AppImage downloaded from [GitHub Releases](https://github.com/linx-systems/clamui/releases):
 
 ```bash
-VERSION="x.y.z"
+VERSION="0.4.1"
 APPIMAGE="ClamUI-${VERSION}-x86_64.AppImage"
 chmod +x "$APPIMAGE"
 ./"$APPIMAGE"
