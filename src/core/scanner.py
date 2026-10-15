@@ -17,8 +17,8 @@ from typing import TYPE_CHECKING
 from gi.repository import GLib
 
 from .clamav_config import parse_config
-from .clamscan_parser import parse_clamscan_result
 from .log_manager import LogManager
+from .scan_result_interpreter import interpret_clamscan_result
 from .scanner_base import (
     cleanup_process,
     communicate_with_cancel_check,
@@ -471,7 +471,7 @@ class Scanner:
             # The capped verbose-output buffer may omit ClamAV's terminal
             # summary. Keep the live progress count as a fallback so a
             # completed scan is not mistaken for an all-files-failed scan.
-            result = parse_clamscan_result(
+            result = interpret_clamscan_result(
                 path,
                 stdout,
                 stderr,

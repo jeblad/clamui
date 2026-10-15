@@ -1,11 +1,13 @@
-"""Unit tests for stateless clamscan result parsing."""
+"""Unit tests for ClamAV result interpretation."""
 
-from src.core.clamscan_parser import parse_clamscan_result
+import pytest
+
+from src.core.scan_result_interpreter import interpret_clamscan_result, interpret_daemon_result
 from src.core.scanner_types import ScanStatus
 
 
-class TestClamscanResultParser:
-    """Tests for parse_clamscan_result."""
+class TestClamscanResultInterpretation:
+    """Tests for standalone ClamAV result interpretation."""
 
     def test_parse_results_clean(self):
         """Parse clean scan output."""
@@ -23,7 +25,7 @@ Data scanned: 0.50 MB
 Data read: 0.50 MB
 Time: 0.500 sec (0 m 0 s)
 """
-        result = parse_clamscan_result("/home/user", stdout, "", 0)
+        result = interpret_clamscan_result("/home/user", stdout, "", 0)
 
         assert result.status == ScanStatus.CLEAN
         assert result.infected_count == 0
@@ -47,7 +49,7 @@ Data scanned: 0.01 MB
 Data read: 0.01 MB
 Time: 0.100 sec (0 m 0 s)
 """
-        result = parse_clamscan_result("/home/user/test", stdout, "", 1)
+        result = interpret_clamscan_result("/home/user/test", stdout, "", 1)
 
         assert result.status == ScanStatus.INFECTED
         assert result.infected_count == 1
@@ -58,7 +60,7 @@ Time: 0.100 sec (0 m 0 s)
     def test_parse_results_error(self):
         """Return an error result for exit code 2."""
 
-        result = parse_clamscan_result("/nonexistent", "", "Can't access path", 2)
+        result = interpret_clamscan_result("/nonexistent", "", "Can't access path", 2)
 
         assert result.status == ScanStatus.ERROR
         assert result.error_message is not None
@@ -80,7 +82,7 @@ Infected files: 0
             "only scanning 105906176 bytes\n"
         )
 
-        result = parse_clamscan_result("/", stdout, stderr, 2)
+        result = interpret_clamscan_result("/", stdout, stderr, 2)
 
         assert result.status == ScanStatus.CLEAN
         assert result.infected_count == 0
@@ -94,7 +96,7 @@ Infected files: 0
             "ERROR: Can't open file or directory\n"
         )
 
-        result = parse_clamscan_result("/", "", stderr, 2)
+        result = interpret_clamscan_result("/", "", stderr, 2)
 
         assert result.status == ScanStatus.ERROR
         assert result.error_message is not None
@@ -111,7 +113,7 @@ Infected files: 0
 Scanned files: 100
 Infected files: 3
 """
-        result = parse_clamscan_result("/home/user", stdout, "", 1)
+        result = interpret_clamscan_result("/home/user", stdout, "", 1)
 
         assert result.status == ScanStatus.INFECTED
         assert result.infected_count == 3
@@ -127,7 +129,7 @@ Infected files: 3
 Scanned files: 10
 Infected files: 0
 """
-        result = parse_clamscan_result("/home/user", stdout, "", 0)
+        result = interpret_clamscan_result("/home/user", stdout, "", 0)
 
         assert result.status == ScanStatus.CLEAN
         assert len(result.threat_details) == 0
@@ -142,7 +144,7 @@ Infected files: 0
 Scanned files: 5
 Infected files: 1
 """
-        result = parse_clamscan_result("/home/user/test", stdout, "", 1)
+        result = interpret_clamscan_result("/home/user/test", stdout, "", 1)
 
         assert len(result.threat_details) == 1
         threat = result.threat_details[0]
@@ -163,7 +165,7 @@ Infected files: 1
 Scanned files: 100
 Infected files: 3
 """
-        result = parse_clamscan_result("/home/user", stdout, "", 1)
+        result = interpret_clamscan_result("/home/user", stdout, "", 1)
 
         assert len(result.threat_details) == 3
 
@@ -194,7 +196,7 @@ Scanned files: 1
 Scanned directories: 2
 Infected files: 0
 """
-        result = parse_clamscan_result("/home/user", stdout, "", 2)
+        result = interpret_clamscan_result("/home/user", stdout, "", 2)
 
         # Should be CLEAN because only permission errors, no infections
         assert result.status == ScanStatus.CLEAN
@@ -221,7 +223,7 @@ Infected files: 0
 Scanned files: 2
 Infected files: 1
 """
-        result = parse_clamscan_result("/home/user", stdout, "", 2)
+        result = interpret_clamscan_result("/home/user", stdout, "", 2)
 
         # Detections are authoritative even on exit code 2.
         assert result.status == ScanStatus.INFECTED
@@ -241,7 +243,7 @@ Infected files: 1
 Scanned files: 0
 Infected files: 0
 """
-        result = parse_clamscan_result("/nonexistent", stdout, "Path not found", 2)
+        result = interpret_clamscan_result("/nonexistent", stdout, "Path not found", 2)
 
         # Should be ERROR because exit code 2 and no skipped files
         assert result.status == ScanStatus.ERROR
@@ -258,7 +260,7 @@ Infected files: 0
 Scanned files: 1
 Infected files: 0
 """
-        result = parse_clamscan_result("/", stdout, "", 2)
+        result = interpret_clamscan_result("/", stdout, "", 2)
 
         assert result.status == ScanStatus.CLEAN
         assert result.skipped_count == 1
@@ -279,7 +281,7 @@ WARNING: /home/user/.cache/steam_pipe: Not supported file type
 LibClamAV Warning: cli_realpath: Invalid arguments.
 """
 
-        result = parse_clamscan_result("/home/user", stdout, stderr, 2)
+        result = interpret_clamscan_result("/home/user", stdout, stderr, 2)
 
         assert result.status == ScanStatus.CLEAN
         assert result.infected_count == 0
@@ -298,7 +300,7 @@ LibClamAV Warning: cli_realpath: Invalid arguments.
             "LibClamAV Warning: something novel happened\n"
         )
 
-        result = parse_clamscan_result("/", "", stderr, 2)
+        result = interpret_clamscan_result("/", "", stderr, 2)
 
         assert result.status == ScanStatus.ERROR
         assert result.error_message is not None
@@ -306,7 +308,7 @@ LibClamAV Warning: cli_realpath: Invalid arguments.
     def test_parse_results_exit_code_2_empty_output_is_error(self):
         """Exit code 2 with no output at all has no positive signal and stays ERROR."""
 
-        result = parse_clamscan_result("/home/user", "", "", 2)
+        result = interpret_clamscan_result("/home/user", "", "", 2)
 
         assert result.status == ScanStatus.ERROR
         assert result.skipped_count == 0
@@ -329,7 +331,7 @@ Total errors: 3
 Data scanned: 120.00 MB
 Time: 10.000 sec (0 m 10 s)
 """
-        result = parse_clamscan_result("/home/user", stdout, "", 2)
+        result = interpret_clamscan_result("/home/user", stdout, "", 2)
 
         assert result.status == ScanStatus.CLEAN
         assert result.warning_message == "3 file(s) could not be read"
@@ -346,7 +348,7 @@ Scanned files: 1
 Infected files: 0
 Total errors: 1
 """
-        result = parse_clamscan_result("/home/user", stdout, "", 2)
+        result = interpret_clamscan_result("/home/user", stdout, "", 2)
 
         assert result.status == ScanStatus.CLEAN
         assert result.skipped_files == ["/root/secret.txt"]
@@ -360,7 +362,7 @@ Infected files: 0
 """
         stderr = "WARNING: /home/user/tmp/ephemeral.dat: Can't access file\n"
 
-        result = parse_clamscan_result("/home/user", stdout, stderr, 2)
+        result = interpret_clamscan_result("/home/user", stdout, stderr, 2)
 
         assert result.status == ScanStatus.CLEAN
         assert result.skipped_files == ["/home/user/tmp/ephemeral.dat"]
@@ -373,7 +375,7 @@ Infected files: 0
 Scanned files: 10
 Infected files: 0
 """
-        result = parse_clamscan_result("/home/user", stdout, "", 2)
+        result = interpret_clamscan_result("/home/user", stdout, "", 2)
 
         assert result.status == ScanStatus.CLEAN
         assert result.skipped_files == []
@@ -390,7 +392,7 @@ Scanned files: 0
 Infected files: 0
 Total errors: 3
 """
-        result = parse_clamscan_result("/root", stdout, "", 2)
+        result = interpret_clamscan_result("/root", stdout, "", 2)
 
         assert result.status == ScanStatus.ERROR
         assert result.error_message == "No files could be scanned"
@@ -403,7 +405,7 @@ Infected files: 0
 """
         stderr = "WARNING: /gone: Can't access file\n"
 
-        result = parse_clamscan_result("/gone", stdout, stderr, 2)
+        result = interpret_clamscan_result("/gone", stdout, stderr, 2)
 
         assert result.status == ScanStatus.ERROR
         assert result.error_message == "No files could be scanned"
@@ -420,7 +422,7 @@ Infected files: 0
             "only scanning 105906176 bytes\n"
         )
 
-        result = parse_clamscan_result("/", stdout, stderr, 2)
+        result = interpret_clamscan_result("/", stdout, stderr, 2)
 
         assert result.status == ScanStatus.CLEAN
         assert result.nonfatal_warnings == [
@@ -443,7 +445,7 @@ Infected files: 1
         stderr = "LibClamAV Warning: cli_tnef: file truncated, returning CLEAN\n"
 
         for exit_code in (1, 2):
-            result = parse_clamscan_result("/home/user", stdout, stderr, exit_code)
+            result = interpret_clamscan_result("/home/user", stdout, stderr, exit_code)
 
             assert result.status == ScanStatus.INFECTED
             assert result.infected_count == 1
@@ -453,12 +455,100 @@ Infected files: 1
             ]
 
 
-class TestClamscanResultParserEdgeCases:
-    """Edge-case tests for parse_clamscan_result."""
+class TestSharedResultInterpretationPolicy:
+    """Cross-backend examples for result rules shared by both scanners."""
+
+    @pytest.mark.parametrize(
+        (
+            "stdout",
+            "stderr",
+            "exit_code",
+            "expected_status",
+            "expected_threat_count",
+            "expected_skipped_files",
+        ),
+        [
+            (
+                "/scan/eicar.txt: Eicar-Test-Signature FOUND\n"
+                "/scan/locked.txt: Access denied. ERROR\n",
+                "",
+                2,
+                ScanStatus.INFECTED,
+                1,
+                ["/scan/locked.txt"],
+            ),
+            (
+                "----------- SCAN SUMMARY -----------\nScanned files: 3\nInfected files: 0\n",
+                "LibClamAV Warning: cli_tnef: file truncated, returning CLEAN\n",
+                2,
+                ScanStatus.CLEAN,
+                0,
+                [],
+            ),
+            ("", "ERROR: Unable to scan", 2, ScanStatus.ERROR, 0, []),
+        ],
+    )
+    def test_shared_detection_and_exit_policy(
+        self,
+        stdout,
+        stderr,
+        exit_code,
+        expected_status,
+        expected_threat_count,
+        expected_skipped_files,
+    ):
+        """Both public entries apply common threat and exit-code precedence."""
+        standalone = interpret_clamscan_result(
+            "/scan",
+            stdout,
+            stderr,
+            exit_code,
+            scanned_files_hint=3,
+        )
+        daemon = interpret_daemon_result("/scan", stdout, stderr, exit_code, file_count=3)
+
+        for result in (standalone, daemon):
+            assert result.status is expected_status
+            assert len(result.threat_details) == expected_threat_count
+            assert result.skipped_files == expected_skipped_files
+
+    @pytest.mark.parametrize(
+        ("stdout", "exit_code", "standalone_status", "daemon_status"),
+        [
+            (
+                "/scan/locked.txt: Can't open file or directory ERROR\n",
+                0,
+                ScanStatus.CLEAN,
+                ScanStatus.ERROR,
+            ),
+            (
+                "----------- SCAN SUMMARY -----------\n"
+                "Scanned files: 0\n"
+                "Infected files: 0\n"
+                "WARNING: /scan/gone.txt: Can't access file\n",
+                2,
+                ScanStatus.ERROR,
+                ScanStatus.CLEAN,
+            ),
+        ],
+    )
+    def test_public_entries_preserve_backend_specific_evidence(
+        self, stdout, exit_code, standalone_status, daemon_status
+    ):
+        """Summary evidence and daemon pre-counts intentionally mean different things."""
+        standalone = interpret_clamscan_result("/scan", stdout, "", exit_code)
+        daemon = interpret_daemon_result("/scan", stdout, "", exit_code, file_count=0)
+
+        assert standalone.status is standalone_status
+        assert daemon.status is daemon_status
+
+
+class TestClamscanResultInterpretationEdgeCases:
+    """Tests for standalone ClamAV interpretation edge cases."""
 
     def test_parse_results_empty_stdout(self):
         """Handle empty stdout."""
-        result = parse_clamscan_result("/test/path", "", "", 0)
+        result = interpret_clamscan_result("/test/path", "", "", 0)
 
         assert result.status == ScanStatus.CLEAN
         assert result.infected_count == 0
@@ -470,7 +560,7 @@ class TestClamscanResultParserEdgeCases:
 
         # Missing colon separator
         stdout = "some_file_without_colon FOUND\n"
-        result = parse_clamscan_result("/test", stdout, "", 1)
+        result = interpret_clamscan_result("/test", stdout, "", 1)
 
         # Should not crash, but may not parse the file correctly
         assert result.status == ScanStatus.INFECTED
@@ -483,7 +573,7 @@ class TestClamscanResultParserEdgeCases:
 /home/user/file2.txt: OK
 /home/user/file3.txt: OK
 """
-        result = parse_clamscan_result("/home/user", stdout, "", 0)
+        result = interpret_clamscan_result("/home/user", stdout, "", 0)
 
         assert result.status == ScanStatus.CLEAN
         assert result.infected_count == 0
@@ -493,7 +583,7 @@ class TestClamscanResultParserEdgeCases:
         """Include stderr in an error result."""
 
         stderr = "LibClamAV Error: Can't open file"
-        result = parse_clamscan_result("/test", "", stderr, 2)
+        result = interpret_clamscan_result("/test", "", stderr, 2)
 
         assert result.status == ScanStatus.ERROR
         assert result.error_message == stderr
@@ -503,7 +593,7 @@ class TestClamscanResultParserEdgeCases:
 
         # File path with unicode and special characters
         stdout = "/home/user/test file (copy).txt: Eicar-Test-Signature FOUND\n"
-        result = parse_clamscan_result("/home/user", stdout, "", 1)
+        result = interpret_clamscan_result("/home/user", stdout, "", 1)
 
         assert result.status == ScanStatus.INFECTED
         assert len(result.threat_details) == 1
@@ -517,7 +607,7 @@ class TestClamscanResultParserEdgeCases:
 
         # Threat name contains colon (edge case)
         stdout = "/home/user/file.exe: Win.Trojan.Generic:Variant FOUND\n"
-        result = parse_clamscan_result("/home/user", stdout, "", 1)
+        result = interpret_clamscan_result("/home/user", stdout, "", 1)
 
         assert result.status == ScanStatus.INFECTED
         assert len(result.threat_details) == 1
@@ -537,7 +627,7 @@ class TestClamscanResultParserEdgeCases:
             "Scanned files: 1\n"
             "Infected files: 0\n"
         )
-        result = parse_clamscan_result("/home/user", stdout, "", 0)
+        result = interpret_clamscan_result("/home/user", stdout, "", 0)
 
         assert result.status == ScanStatus.CLEAN
         assert result.infected_count == 0

@@ -20,6 +20,7 @@ src/core/file_manager_integration.py
 src/core/keyring_manager.py
 src/core/device_monitor.py
 src/core/privileged_helper.py
+src/core/preferences_save.py
 src/core/notification_manager.py
 src/core/quarantine/manager.py
 src/core/result_formatters.py

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: ClamUI 0.4.1\n"
 "Report-Msgid-Bugs-To: https://github.com/linx-systems/clamui/issues\n"
-"POT-Creation-Date: 2026-10-04 15:17+0200\n"
+"POT-Creation-Date: 2026-10-15 18:41+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -976,7 +976,7 @@ msgstr ""
 msgid "No threats detected by VirusTotal"
 msgstr ""
 
-#: src/core/clamav_config.py:1102
+#: src/core/clamav_config.py:1092
 #, python-brace-format
 msgid ""
 "ClamUI privileged helper not installed on the host. The Flatpak sandbox "
@@ -988,47 +988,47 @@ msgid ""
 "install this helper on the host."
 msgstr ""
 
-#: src/core/clamav_config.py:1112
+#: src/core/clamav_config.py:1102
 msgid ""
 "ClamUI privileged helper not installed. Run 'sudo clamui install-privileged-"
 "helper' on this host to install it and enable protected system ClamAV "
 "configuration access."
 msgstr ""
 
-#: src/core/clamav_config.py:1123
+#: src/core/clamav_config.py:1113
 #, python-brace-format
 msgid "Protected configuration path is not allowed: {error}"
 msgstr ""
 
-#: src/core/clamav_config.py:1142
+#: src/core/clamav_config.py:1132
 msgid "pkexec not found - cannot authorize configuration read"
 msgstr ""
 
-#: src/core/clamav_config.py:1144
+#: src/core/clamav_config.py:1134
 msgid "Timed out reading protected configuration"
 msgstr ""
 
-#: src/core/clamav_config.py:1146
+#: src/core/clamav_config.py:1136
 #, python-brace-format
 msgid "Failed to authorize configuration read: {error}"
 msgstr ""
 
-#: src/core/clamav_config.py:1150
+#: src/core/clamav_config.py:1140
 msgid "Authentication was canceled. Configuration was not loaded."
 msgstr ""
 
-#: src/core/clamav_config.py:1157 src/core/clamav_config.py:1379
+#: src/core/clamav_config.py:1147 src/core/clamav_config.py:1369
 msgid ""
 "Privileged helper rejected the request: protocol mismatch. Update the "
 "'clamui-privileged-helper' package on the host."
 msgstr ""
 
-#: src/core/clamav_config.py:1167
+#: src/core/clamav_config.py:1157
 #, python-brace-format
 msgid "Failed to read protected configuration: {error}"
 msgstr ""
 
-#: src/core/clamav_config.py:1278
+#: src/core/clamav_config.py:1268
 #, python-brace-format
 msgid ""
 "ClamUI privileged helper not installed on the host. The Flatpak sandbox "
@@ -1041,25 +1041,25 @@ msgid ""
 "install this helper on the host."
 msgstr ""
 
-#: src/core/clamav_config.py:1293
+#: src/core/clamav_config.py:1283
 msgid ""
 "ClamUI privileged helper not installed. Run 'sudo clamui install-privileged-"
 "helper' on this host to install it and enable saving system ClamAV "
 "configuration."
 msgstr ""
 
-#: src/core/clamav_config.py:1338
+#: src/core/clamav_config.py:1328
 msgid ""
 "The staging directory is not reachable by the privileged helper running on "
 "the host, so preferences cannot be applied from the Flatpak sandbox. A host-"
 "side ClamUI install is required to change system configuration."
 msgstr ""
 
-#: src/core/clamav_config.py:1352
+#: src/core/clamav_config.py:1342
 msgid "Authentication was canceled. Configuration changes were not applied."
 msgstr ""
 
-#: src/core/clamav_config.py:1358
+#: src/core/clamav_config.py:1348
 msgid ""
 "Could not obtain administrator authorization to apply these changes. If you "
 "were not shown a password prompt, the ClamUI polkit policy or privileged "
@@ -1068,13 +1068,13 @@ msgid ""
 "polkit policy) to enable saving system configuration."
 msgstr ""
 
-#: src/core/clamav_config.py:1371
+#: src/core/clamav_config.py:1361
 msgid ""
 "Privileged helper rejected the request: missing PKEXEC_UID. The polkit "
 "policy may be misconfigured."
 msgstr ""
 
-#: src/core/clamav_config.py:1396
+#: src/core/clamav_config.py:1386
 #, python-brace-format
 msgid ""
 "Configuration was applied, but staging cleanup failed for {staging_dir}: "
@@ -2088,6 +2088,60 @@ msgstr ""
 msgid "Privileged-helper installation is already in progress."
 msgstr ""
 
+#: src/core/preferences_save.py:151
+msgid "Validation Error"
+msgstr ""
+
+#: src/core/preferences_save.py:160 src/core/preferences_save.py:183
+msgid "Configuration Error"
+msgstr ""
+
+#: src/core/preferences_save.py:162
+msgid ""
+"Cannot save freshclam settings: Configuration failed to load.\n"
+"\n"
+"This may be due to:\n"
+"- Missing configuration file\n"
+"- Insufficient permissions\n"
+"- Disk space issues (Flatpak)\n"
+"\n"
+"Check the application logs for details."
+msgstr ""
+
+#: src/core/preferences_save.py:185
+#, python-brace-format
+msgid ""
+"Cannot save clamd settings: Configuration failed to load.\n"
+"\n"
+"Check that {path} exists and is readable."
+msgstr ""
+
+#: src/core/preferences_save.py:250
+#, python-brace-format
+msgid "Failed to save configuration files: {error}"
+msgstr ""
+
+#: src/core/preferences_save.py:264
+msgid "Failed to save scheduled scan settings"
+msgstr ""
+
+#: src/core/preferences_save.py:274
+msgid "Failed to apply scheduled scans: scheduler unavailable"
+msgstr ""
+
+#: src/core/preferences_save.py:295
+msgid "enable"
+msgstr ""
+
+#: src/core/preferences_save.py:298
+msgid "disable"
+msgstr ""
+
+#: src/core/preferences_save.py:301
+#, python-brace-format
+msgid "Failed to {action} scheduled scans: {error}"
+msgstr ""
+
 #: src/core/notification_manager.py:79 src/ui/scan_results_dialog.py:188
 msgid "Scan Complete"
 msgstr ""
@@ -2276,7 +2330,7 @@ msgid ""
 "may still appear in the list until cleaned up."
 msgstr ""
 
-#: src/core/result_formatters.py:38 src/core/scanner_base.py:577
+#: src/core/result_formatters.py:38 src/core/scanner_base.py:558
 #, python-brace-format
 msgid "{count} file(s) could not be accessed"
 msgstr ""
@@ -2370,23 +2424,23 @@ msgstr ""
 msgid "Timestamp"
 msgstr ""
 
-#: src/core/scanner_base.py:575 src/core/scanner_base.py:592
+#: src/core/scanner_base.py:556 src/core/scanner_base.py:573
 msgid "No files could be scanned"
 msgstr ""
 
-#: src/core/scanner_base.py:582
+#: src/core/scanner_base.py:563
 #, python-brace-format
 msgid ""
 "{count} non-fatal warning(s) during scan; some files may have been only "
 "partially scanned"
 msgstr ""
 
-#: src/core/scanner_base.py:595
+#: src/core/scanner_base.py:576
 #, python-brace-format
 msgid "{count} file(s) could not be read"
 msgstr ""
 
-#: src/core/scanner_base.py:769
+#: src/core/scanner_base.py:750
 msgid "Scan cancelled by user"
 msgstr ""
 
@@ -2562,15 +2616,16 @@ msgstr ""
 msgid "Database update failed: {error}"
 msgstr ""
 
-#: src/core/updater.py:1391 src/ui/preferences/window.py:830
-#: src/ui/scan_results_dialog.py:235 src/ui/scan_view.py:658
-#: src/ui/scan_view.py:2308 src/ui/virustotal_results_dialog.py:199
+#: src/core/updater.py:1391 src/ui/preferences/save_page.py:467
+#: src/ui/preferences/window.py:839 src/ui/scan_results_dialog.py:235
+#: src/ui/scan_view.py:658 src/ui/scan_view.py:2308
+#: src/ui/virustotal_results_dialog.py:199
 msgid "Unknown error"
 msgstr ""
 
 #: src/core/virustotal.py:262 src/core/virustotal.py:316
 #: src/core/virustotal.py:478 src/core/virustotal.py:621
-#: src/core/virustotal.py:629 src/ui/scan/scan_view.py:257
+#: src/core/virustotal.py:629 src/ui/scan/scan_view.py:259
 #: src/ui/scan_view.py:2304
 msgid "Scan cancelled"
 msgstr ""
@@ -2726,7 +2781,7 @@ msgstr ""
 #: src/ui/preferences/virustotal_page.py:359 src/ui/profile_dialogs.py:123
 #: src/ui/profile_dialogs.py:724 src/ui/profile_dialogs.py:873
 #: src/ui/profile_dialogs.py:995 src/ui/quarantine_view.py:101
-#: src/ui/scan/scan_view.py:175 src/ui/scan_view.py:1281
+#: src/ui/scan/scan_view.py:177 src/ui/scan_view.py:1281
 #: src/ui/scan_view.py:1935 src/ui/update_view.py:147
 msgid "Cancel"
 msgstr ""
@@ -2735,17 +2790,17 @@ msgstr ""
 msgid "Confirm"
 msgstr ""
 
-#: src/ui/compat.py:425
+#: src/ui/compat.py:462
 msgid "_Open"
 msgstr ""
 
-#: src/ui/compat.py:426 src/ui/compat.py:492 src/ui/file_export.py:192
+#: src/ui/compat.py:463 src/ui/compat.py:529 src/ui/file_export.py:192
 #: src/ui/preferences/database_page.py:376
-#: src/ui/preferences/scanner_page.py:255
+#: src/ui/preferences/scanner_page.py:273
 msgid "_Cancel"
 msgstr ""
 
-#: src/ui/compat.py:491 src/ui/file_export.py:191
+#: src/ui/compat.py:528 src/ui/file_export.py:191
 msgid "_Save"
 msgstr ""
 
@@ -2944,7 +2999,7 @@ msgstr ""
 msgid "Checking"
 msgstr ""
 
-#: src/ui/components_view.py:430 src/ui/preferences/scanner_page.py:387
+#: src/ui/components_view.py:430 src/ui/preferences/scanner_page.py:405
 msgid "Refresh Status"
 msgstr ""
 
@@ -3214,7 +3269,7 @@ msgstr ""
 msgid "Export daemon logs to file"
 msgstr ""
 
-#: src/ui/logs_view.py:520 src/ui/preferences/scanner_page.py:367
+#: src/ui/logs_view.py:520 src/ui/preferences/scanner_page.py:385
 msgid "Daemon Status"
 msgstr ""
 
@@ -3428,8 +3483,8 @@ msgstr ""
 msgid "Could not open folder: {error}"
 msgstr ""
 
-#: src/ui/preferences/base.py:687 src/ui/preferences/save_page.py:192
-#: src/ui/preferences/scanner_page.py:617
+#: src/ui/preferences/base.py:687 src/ui/preferences/save_page.py:162
+#: src/ui/preferences/scanner_page.py:635
 msgid "OK"
 msgstr ""
 
@@ -3467,7 +3522,7 @@ msgid "Always ask"
 msgstr ""
 
 #: src/ui/preferences/behavior_page.py:80
-#: src/ui/preferences/virustotal_page.py:202 src/ui/preferences/window.py:48
+#: src/ui/preferences/virustotal_page.py:202 src/ui/preferences/window.py:54
 msgid "Behavior"
 msgstr ""
 
@@ -3589,7 +3644,7 @@ msgid "Database Updates"
 msgstr ""
 
 #: src/ui/preferences/database_page.py:223
-#: src/ui/preferences/scanner_page.py:124
+#: src/ui/preferences/scanner_page.py:142
 #, python-brace-format
 msgid "Detected: {path}"
 msgstr ""
@@ -3599,7 +3654,7 @@ msgid "No freshclam.conf found in known locations"
 msgstr ""
 
 #: src/ui/preferences/database_page.py:240
-#: src/ui/preferences/scanner_page.py:137
+#: src/ui/preferences/scanner_page.py:155
 msgid "Configuration File"
 msgstr ""
 
@@ -3608,7 +3663,7 @@ msgid "freshclam.conf location"
 msgstr ""
 
 #: src/ui/preferences/database_page.py:252
-#: src/ui/preferences/scanner_page.py:149
+#: src/ui/preferences/scanner_page.py:167
 msgid ""
 "Request administrator authorization to read a protected configuration file"
 msgstr ""
@@ -3619,25 +3674,25 @@ msgid ""
 msgstr ""
 
 #: src/ui/preferences/database_page.py:317
-#: src/ui/preferences/scanner_page.py:192
+#: src/ui/preferences/scanner_page.py:210
 msgid "Configuration files"
 msgstr ""
 
 #: src/ui/preferences/database_page.py:340
-#: src/ui/preferences/scanner_page.py:219
+#: src/ui/preferences/scanner_page.py:237
 #, python-brace-format
 msgid "Selected: {path}"
 msgstr ""
 
 #: src/ui/preferences/database_page.py:353
 #: src/ui/preferences/database_page.py:372
-#: src/ui/preferences/scanner_page.py:232
-#: src/ui/preferences/scanner_page.py:251
+#: src/ui/preferences/scanner_page.py:250
+#: src/ui/preferences/scanner_page.py:269
 msgid "Select Configuration File"
 msgstr ""
 
 #: src/ui/preferences/database_page.py:375
-#: src/ui/preferences/scanner_page.py:254
+#: src/ui/preferences/scanner_page.py:272
 msgid "_Select"
 msgstr ""
 
@@ -3662,7 +3717,7 @@ msgid "Notify ClamD Config"
 msgstr ""
 
 #: src/ui/preferences/database_page.py:443
-#: src/ui/preferences/scanner_page.py:797
+#: src/ui/preferences/scanner_page.py:815
 msgid "Verbose Logging"
 msgstr ""
 
@@ -3671,12 +3726,12 @@ msgid "Enable detailed logging for database updates"
 msgstr ""
 
 #: src/ui/preferences/database_page.py:450
-#: src/ui/preferences/scanner_page.py:804
+#: src/ui/preferences/scanner_page.py:822
 msgid "Syslog Logging"
 msgstr ""
 
 #: src/ui/preferences/database_page.py:451
-#: src/ui/preferences/scanner_page.py:805
+#: src/ui/preferences/scanner_page.py:823
 msgid "Send log messages to system log"
 msgstr ""
 
@@ -3811,7 +3866,7 @@ msgstr ""
 msgid "Errors only"
 msgstr ""
 
-#: src/ui/preferences/debug_page.py:83 src/ui/preferences/window.py:56
+#: src/ui/preferences/debug_page.py:83 src/ui/preferences/window.py:62
 msgid "Debug"
 msgstr ""
 
@@ -4074,7 +4129,7 @@ msgstr ""
 msgid "Some log files could not be deleted. They may be in use or protected."
 msgstr ""
 
-#: src/ui/preferences/device_scan_page.py:88 src/ui/preferences/window.py:53
+#: src/ui/preferences/device_scan_page.py:88 src/ui/preferences/window.py:59
 msgid "Device Scan"
 msgstr ""
 
@@ -4183,7 +4238,7 @@ msgstr ""
 msgid "Your exclusion changes could not be saved."
 msgstr ""
 
-#: src/ui/preferences/exclusions_page.py:108 src/ui/preferences/window.py:49
+#: src/ui/preferences/exclusions_page.py:108 src/ui/preferences/window.py:55
 #: src/ui/profile_dialogs.py:236 src/ui/profile_dialogs.py:599
 msgid "Exclusions"
 msgstr ""
@@ -4221,7 +4276,7 @@ msgid "On Access"
 msgstr ""
 
 #: src/ui/preferences/onaccess_page.py:94
-#: src/ui/preferences/scanner_page.py:169
+#: src/ui/preferences/scanner_page.py:187
 msgid "Configuration Status"
 msgstr ""
 
@@ -4306,12 +4361,12 @@ msgid "Maximum number of scanning threads"
 msgstr ""
 
 #: src/ui/preferences/onaccess_page.py:230
-#: src/ui/preferences/scanner_page.py:718
+#: src/ui/preferences/scanner_page.py:736
 msgid "Max File Size (MB)"
 msgstr ""
 
 #: src/ui/preferences/onaccess_page.py:231
-#: src/ui/preferences/scanner_page.py:719
+#: src/ui/preferences/scanner_page.py:737
 msgid "Maximum file size to scan (0 = unlimited)"
 msgstr ""
 
@@ -4367,129 +4422,89 @@ msgstr ""
 msgid "Exclude root (UID 0) from On-Access scanning"
 msgstr ""
 
-#: src/ui/preferences/save_page.py:214 src/ui/preferences/save_page.py:288
+#: src/ui/preferences/save_page.py:184 src/ui/preferences/save_page.py:258
 msgid "Save & Apply"
 msgstr ""
 
-#: src/ui/preferences/save_page.py:220
+#: src/ui/preferences/save_page.py:190
 msgid "Save Behavior"
 msgstr ""
 
-#: src/ui/preferences/save_page.py:224
+#: src/ui/preferences/save_page.py:194
 msgid "Auto-Saved"
 msgstr ""
 
-#: src/ui/preferences/save_page.py:225
+#: src/ui/preferences/save_page.py:195
 msgid "Scan Backend, Exclusions"
 msgstr ""
 
-#: src/ui/preferences/save_page.py:241
+#: src/ui/preferences/save_page.py:211
 msgid "Manual Save Required"
 msgstr ""
 
-#: src/ui/preferences/save_page.py:246
+#: src/ui/preferences/save_page.py:216
 msgid ""
 "Database Updates, Scanner, On-Access, Scheduled Scans. A matching host "
 "privileged helper is required; authorization occurs only when the helper is "
 "available."
 msgstr ""
 
-#: src/ui/preferences/save_page.py:255
+#: src/ui/preferences/save_page.py:225
 msgid "Database Updates, Scanner, On-Access, Scheduled Scans."
 msgstr ""
 
-#: src/ui/preferences/save_page.py:262
+#: src/ui/preferences/save_page.py:232
 msgid ""
 "Database Updates, Scanner, On-Access, Scheduled Scans. When needed, you will "
 "be asked for administrator permission once."
 msgstr ""
 
-#: src/ui/preferences/save_page.py:278
+#: src/ui/preferences/save_page.py:248
 msgid "Apply Configuration"
 msgstr ""
 
-#: src/ui/preferences/save_page.py:282
+#: src/ui/preferences/save_page.py:252
 msgid "Save Configuration"
 msgstr ""
 
-#: src/ui/preferences/save_page.py:283
+#: src/ui/preferences/save_page.py:253
 msgid "Apply all pending changes at once."
 msgstr ""
 
-#: src/ui/preferences/save_page.py:304
+#: src/ui/preferences/save_page.py:274
 msgid "Privileged Helper"
 msgstr ""
 
-#: src/ui/preferences/save_page.py:306
+#: src/ui/preferences/save_page.py:276
 msgid "Checking whether the matching host helper is installed…"
 msgstr ""
 
-#: src/ui/preferences/save_page.py:317 src/ui/privileged_helper_dialog.py:108
+#: src/ui/preferences/save_page.py:287 src/ui/privileged_helper_dialog.py:108
 msgid "Install Helper"
 msgstr ""
 
-#: src/ui/preferences/save_page.py:354
+#: src/ui/preferences/save_page.py:324
 #, python-brace-format
 msgid "Installed: {package} {version}."
 msgstr ""
 
-#: src/ui/preferences/save_page.py:368
+#: src/ui/preferences/save_page.py:338
 msgid "A matching host privileged helper can be installed."
 msgstr ""
 
-#: src/ui/preferences/save_page.py:380
+#: src/ui/preferences/save_page.py:350
 msgid "Automatic installation is unavailable on this host."
 msgstr ""
 
-#: src/ui/preferences/save_page.py:384
+#: src/ui/preferences/save_page.py:354
 msgid "No host privileged helper is required."
 msgstr ""
 
-#: src/ui/preferences/save_page.py:434 src/ui/preferences/save_page.py:464
-msgid "Configuration Error"
-msgstr ""
-
-#: src/ui/preferences/save_page.py:436
-msgid ""
-"Cannot save freshclam settings: Configuration failed to load.\n"
-"\n"
-"This may be due to:\n"
-"- Missing configuration file\n"
-"- Insufficient permissions\n"
-"- Disk space issues (Flatpak)\n"
-"\n"
-"Check the application logs for details."
-msgstr ""
-
-#: src/ui/preferences/save_page.py:455 src/ui/preferences/save_page.py:483
-msgid "Validation Error"
-msgstr ""
-
-#: src/ui/preferences/save_page.py:466
-#, python-brace-format
-msgid ""
-"Cannot save clamd settings: Configuration failed to load.\n"
-"\n"
-"Check that {path} exists and is readable."
-msgstr ""
-
-#: src/ui/preferences/save_page.py:621
-msgid "ClamAV configuration files"
-msgstr ""
-
-#: src/ui/preferences/save_page.py:640
-msgid "Failed to save scheduled scan settings"
-msgstr ""
-
-#: src/ui/preferences/save_page.py:641
-msgid "Scheduled scan preferences"
-msgstr ""
-
-#: src/ui/preferences/save_page.py:670
+#: src/ui/preferences/save_page.py:431
 msgid "Configuration Saved with Warning"
 msgstr ""
 
-#: src/ui/preferences/save_page.py:671
+#: src/ui/preferences/save_page.py:432
 #, python-brace-format
 msgid ""
 "Configuration saved with a warning:\n"
@@ -4497,30 +4512,38 @@ msgid ""
 "{warning}"
 msgstr ""
 
-#: src/ui/preferences/save_page.py:678
+#: src/ui/preferences/save_page.py:438
 msgid "Configuration Saved"
 msgstr ""
 
-#: src/ui/preferences/save_page.py:680
+#: src/ui/preferences/save_page.py:439
 msgid ""
 "Configuration saved. Active ClamAV services were restarted where needed."
 msgstr ""
 
-#: src/ui/preferences/save_page.py:686
+#: src/ui/preferences/save_page.py:443
 msgid "No Changes to Apply"
 msgstr ""
 
-#: src/ui/preferences/save_page.py:688
+#: src/ui/preferences/save_page.py:445
 msgid ""
 "No configuration changes were detected, so nothing was saved. Open a "
 "settings page and modify a value before saving."
 msgstr ""
 
-#: src/ui/preferences/save_page.py:698
+#: src/ui/preferences/save_page.py:451
+msgid "ClamAV configuration files"
+msgstr ""
+
+#: src/ui/preferences/save_page.py:452
+msgid "Scheduled scan preferences"
+msgstr ""
+
+#: src/ui/preferences/save_page.py:455
 msgid "Changes Partially Applied"
 msgstr ""
 
-#: src/ui/preferences/save_page.py:700
+#: src/ui/preferences/save_page.py:457
 #, python-brace-format
 msgid ""
 "The following changes were saved before another change failed:\n"
@@ -4531,218 +4554,218 @@ msgid ""
 "Review your settings and save again."
 msgstr ""
 
-#: src/ui/preferences/save_page.py:710
+#: src/ui/preferences/save_page.py:467
 msgid "Save Failed"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:95
+#: src/ui/preferences/scanner_page.py:113
 msgid "Scanner Settings"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:127
+#: src/ui/preferences/scanner_page.py:145
 msgid "No clamd.conf found in known locations"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:139
+#: src/ui/preferences/scanner_page.py:157
 msgid "clamd.conf location"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:171
+#: src/ui/preferences/scanner_page.py:189
 msgid "ClamD Configuration"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:172
+#: src/ui/preferences/scanner_page.py:190
 msgid "clamd.conf not found - Scanner settings unavailable"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:205
+#: src/ui/preferences/scanner_page.py:223
 msgid "Selected configuration file is not accessible from the host"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:281
+#: src/ui/preferences/scanner_page.py:299
 msgid "Failed to save configuration file selection"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:325
-#: src/ui/preferences/scanner_page.py:344
+#: src/ui/preferences/scanner_page.py:343
+#: src/ui/preferences/scanner_page.py:362
 msgid "Scan Backend"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:331
+#: src/ui/preferences/scanner_page.py:349
 msgid ""
 "Select how ClamUI performs scans. Daemon runs on host via flatpak-spawn. "
 "Auto-saved."
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:335
+#: src/ui/preferences/scanner_page.py:353
 msgid "Select how ClamUI performs scans. Auto-saved."
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:340
+#: src/ui/preferences/scanner_page.py:358
 msgid "Auto (prefer daemon)"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:341
+#: src/ui/preferences/scanner_page.py:359
 msgid "ClamAV Daemon (clamd)"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:342
+#: src/ui/preferences/scanner_page.py:360
 msgid "Standalone Scanner (clamscan)"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:369
-#: src/ui/preferences/scanner_page.py:372
+#: src/ui/preferences/scanner_page.py:387
+#: src/ui/preferences/scanner_page.py:390
 msgid "Checking daemon connection..."
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:402
+#: src/ui/preferences/scanner_page.py:420
 msgid "Documentation"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:403
+#: src/ui/preferences/scanner_page.py:421
 msgid "About scan backends"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:426
+#: src/ui/preferences/scanner_page.py:444
 msgid ""
 "Recommended - Automatically uses daemon if available, falls back to clamscan "
 "for reliability"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:429
+#: src/ui/preferences/scanner_page.py:447
 msgid ""
 "Fastest - Instant startup with in-memory database, requires clamd service "
 "running"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:431
+#: src/ui/preferences/scanner_page.py:449
 msgid ""
 "Most compatible - Works anywhere, loads database each scan (3-10 sec startup)"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:466
+#: src/ui/preferences/scanner_page.py:484
 msgid "Failed to save scan backend selection"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:519
+#: src/ui/preferences/scanner_page.py:537
 msgid "Daemon available"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:520
+#: src/ui/preferences/scanner_page.py:538
 #, python-brace-format
 msgid "Not available: {message}"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:571
+#: src/ui/preferences/scanner_page.py:589
 msgid "Error Opening Documentation"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:572
+#: src/ui/preferences/scanner_page.py:590
 #, python-brace-format
 msgid "Could not open documentation file: {error}"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:647
+#: src/ui/preferences/scanner_page.py:665
 msgid "File Type Scanning"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:648
+#: src/ui/preferences/scanner_page.py:666
 msgid "Enable or disable scanning for specific file types"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:653
+#: src/ui/preferences/scanner_page.py:671
 msgid "Scan PE Files"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:654
+#: src/ui/preferences/scanner_page.py:672
 msgid "Scan Windows/DOS executable files"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:660
+#: src/ui/preferences/scanner_page.py:678
 msgid "Scan ELF Files"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:661
+#: src/ui/preferences/scanner_page.py:679
 msgid "Scan Unix/Linux executable files"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:667
+#: src/ui/preferences/scanner_page.py:685
 msgid "Scan OLE2 Files"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:668
+#: src/ui/preferences/scanner_page.py:686
 msgid "Scan Microsoft Office documents"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:674
+#: src/ui/preferences/scanner_page.py:692
 msgid "Scan PDF Files"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:675
+#: src/ui/preferences/scanner_page.py:693
 msgid "Scan PDF documents"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:681
+#: src/ui/preferences/scanner_page.py:699
 msgid "Scan HTML Files"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:682
+#: src/ui/preferences/scanner_page.py:700
 msgid "Scan HTML documents"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:688
+#: src/ui/preferences/scanner_page.py:706
 msgid "Scan Archive Files"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:689
+#: src/ui/preferences/scanner_page.py:707
 msgid "Scan compressed archives (ZIP, RAR, etc.)"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:712
+#: src/ui/preferences/scanner_page.py:730
 msgid "Performance and Limits"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:713
+#: src/ui/preferences/scanner_page.py:731
 msgid "Configure scanning limits and performance settings"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:730
+#: src/ui/preferences/scanner_page.py:748
 msgid "Max Scan Size (MB)"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:731
+#: src/ui/preferences/scanner_page.py:749
 msgid "Maximum total scan size (0 = unlimited)"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:742
+#: src/ui/preferences/scanner_page.py:760
 msgid "Max Archive Recursion"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:743
+#: src/ui/preferences/scanner_page.py:761
 msgid "Maximum recursion depth for archives"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:755
+#: src/ui/preferences/scanner_page.py:773
 msgid "Max Files in Archive"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:756
+#: src/ui/preferences/scanner_page.py:774
 msgid "Maximum number of files to scan in archive (0 = unlimited)"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:783
+#: src/ui/preferences/scanner_page.py:801
 msgid "Logging"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:784
+#: src/ui/preferences/scanner_page.py:802
 msgid "Configure logging options for the scanner"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:789
+#: src/ui/preferences/scanner_page.py:807
 msgid "Log File Path"
 msgstr ""
 
-#: src/ui/preferences/scanner_page.py:798
+#: src/ui/preferences/scanner_page.py:816
 msgid "Enable detailed scanner logging"
 msgstr ""
 
@@ -4846,7 +4869,7 @@ msgstr ""
 msgid "Auto-Quarantine"
 msgstr ""
 
-#: src/ui/preferences/virustotal_page.py:70 src/ui/preferences/window.py:55
+#: src/ui/preferences/virustotal_page.py:70 src/ui/preferences/window.py:61
 msgid "VirusTotal"
 msgstr ""
 
@@ -4972,51 +4995,51 @@ msgstr ""
 msgid "Delete"
 msgstr ""
 
-#: src/ui/preferences/window.py:50 src/ui/sidebar.py:28
+#: src/ui/preferences/window.py:56 src/ui/sidebar.py:28
 msgid "Database"
 msgstr ""
 
-#: src/ui/preferences/window.py:51
+#: src/ui/preferences/window.py:57
 msgid "Scanner"
 msgstr ""
 
-#: src/ui/preferences/window.py:52
+#: src/ui/preferences/window.py:58
 msgid "Scheduled"
 msgstr ""
 
-#: src/ui/preferences/window.py:54
+#: src/ui/preferences/window.py:60
 msgid "On-Access"
 msgstr ""
 
-#: src/ui/preferences/window.py:57 src/ui/profile_dialogs.py:129
+#: src/ui/preferences/window.py:63 src/ui/profile_dialogs.py:129
 msgid "Save"
 msgstr ""
 
-#: src/ui/preferences/window.py:147 src/ui/preferences/window.py:306
+#: src/ui/preferences/window.py:153 src/ui/preferences/window.py:303
 #: src/ui/window.py:629
 msgid "Preferences"
 msgstr ""
 
-#: src/ui/preferences/window.py:300 src/ui/window.py:515
+#: src/ui/preferences/window.py:297 src/ui/window.py:515
 msgid "Back to navigation"
 msgstr ""
 
-#: src/ui/preferences/window.py:534 src/ui/preferences/window.py:557
+#: src/ui/preferences/window.py:551 src/ui/preferences/window.py:574
 #, python-brace-format
 msgid "Preferences - {page}"
 msgstr ""
 
-#: src/ui/preferences/window.py:757
+#: src/ui/preferences/window.py:766
 #, python-brace-format
 msgid "Failed to load {file}: {error}"
 msgstr ""
 
-#: src/ui/preferences/window.py:829
+#: src/ui/preferences/window.py:838
 #, python-brace-format
 msgid "Could not load configuration with administrator authorization: {error}"
 msgstr ""
 
-#: src/ui/preferences/window.py:848
+#: src/ui/preferences/window.py:857
 #, python-brace-format
 msgid "Loaded {file} with administrator authorization"
 msgstr ""
@@ -5492,7 +5515,7 @@ msgstr ""
 msgid "Scan Progress"
 msgstr ""
 
-#: src/ui/scan/scan_progress_widget.py:63 src/ui/scan/scan_view.py:292
+#: src/ui/scan/scan_progress_widget.py:63 src/ui/scan/scan_view.py:294
 #: src/ui/scan_view.py:1321
 msgid "Scanning..."
 msgstr ""
@@ -5569,53 +5592,53 @@ msgstr ""
 msgid "View Results"
 msgstr ""
 
-#: src/ui/scan/scan_view.py:161 src/ui/scan_view.py:1264
+#: src/ui/scan/scan_view.py:163 src/ui/scan_view.py:1264
 msgid "Start Scan"
 msgstr ""
 
-#: src/ui/scan/scan_view.py:167 src/ui/scan_view.py:1273
+#: src/ui/scan/scan_view.py:169 src/ui/scan_view.py:1273
 msgid "EICAR Test"
 msgstr ""
 
-#: src/ui/scan/scan_view.py:169 src/ui/scan_view.py:2396
+#: src/ui/scan/scan_view.py:171 src/ui/scan_view.py:2396
 msgid "Run a scan with EICAR test file to verify antivirus detection"
 msgstr ""
 
-#: src/ui/scan/scan_view.py:192 src/ui/scan_view.py:2422
+#: src/ui/scan/scan_view.py:194 src/ui/scan_view.py:2422
 #, python-brace-format
 msgid "Backend: {name}"
 msgstr ""
 
-#: src/ui/scan/scan_view.py:208 src/ui/scan/target_selector.py:135
+#: src/ui/scan/scan_view.py:210 src/ui/scan/target_selector.py:135
 msgid "Cannot add targets while scanning"
 msgstr ""
 
-#: src/ui/scan/scan_view.py:251 src/ui/scan_view.py:2296
+#: src/ui/scan/scan_view.py:253 src/ui/scan_view.py:2296
 #, python-brace-format
 msgid "Scan complete - {count} threat(s) detected"
 msgstr ""
 
-#: src/ui/scan/scan_view.py:260
+#: src/ui/scan/scan_view.py:262
 #, python-brace-format
 msgid "Scan error: {error}"
 msgstr ""
 
-#: src/ui/scan/scan_view.py:273 src/ui/scan_view.py:1786
+#: src/ui/scan/scan_view.py:275 src/ui/scan_view.py:1786
 msgid "Please select a file or folder to scan"
 msgstr ""
 
-#: src/ui/scan/scan_view.py:306 src/ui/scan_view.py:2244
+#: src/ui/scan/scan_view.py:308 src/ui/scan_view.py:2244
 #, python-brace-format
 msgid "Target {current} of {total}: {path}"
 msgstr ""
 
-#: src/ui/scan/scan_view.py:311 src/ui/scan_view.py:1961
+#: src/ui/scan/scan_view.py:313 src/ui/scan_view.py:1961
 #: src/ui/scan_view.py:2241
 #, python-brace-format
 msgid "Scanning {path}"
 msgstr ""
 
-#: src/ui/scan/scan_view.py:334 src/ui/scan_view.py:1898
+#: src/ui/scan/scan_view.py:336 src/ui/scan_view.py:1898
 #, python-brace-format
 msgid "Failed to create EICAR test file: {error}"
 msgstr ""

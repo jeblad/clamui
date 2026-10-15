@@ -6,9 +6,8 @@ This module provides the SavePage class which handles saving all
 preference changes to ClamAV configuration files and ClamUI settings.
 """
 
-import copy
 import threading
-from pathlib import Path
+from collections.abc import Callable
 
 import gi
 
@@ -16,14 +15,18 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, GLib, Gtk
 
-from ...core.clamav_config import (
-    ClamAVConfig,
-    backup_config,
-    validate_config,
-    write_configs_with_elevation,
-)
 from ...core.flatpak import is_flatpak
 from ...core.i18n import _
+from ...core.preferences_save import (
+    DurableGroup,
+    PreferenceSaveRequest,
+    PreferenceSaveResult,
+    PreferenceSaveState,
+    PreferenceSaveValidationError,
+    PreparedPreferenceSave,
+    SaveStatus,
+    prepare_preference_save,
+)
 from ...core.privileged_helper import (
     PrivilegedHelperState,
     PrivilegedHelperStatus,
@@ -41,77 +44,44 @@ from .scheduled_page import ScheduledPage
 
 class SavePage(PreferencesPageMixin):
     """
-    Save & Apply preference page for configuration persistence.
+    GTK adapter for collecting and rendering the Save & Apply workflow.
 
-    This class creates and manages the UI for saving all preference changes,
-    including ClamAV configuration files (freshclam.conf, clamd.conf) and
-    ClamUI application settings (scheduled scans).
-
-    The page includes:
-    - Information banners explaining auto-save vs manual save
-    - Save & Apply button
-    - Background thread processing with progress feedback
-    - Error/success dialog handling
-
-    Note: This class uses PreferencesPageMixin for shared dialog utilities.
-    The save process validates configs, backs them up, writes with elevation,
-    and handles scheduled scan enablement/disablement.
+    The page owns widget collection, the background-thread hand-off, and
+    main-thread presentation. Proposal validation and persistence ordering are
+    owned by :mod:`core.preferences_save`.
     """
 
     def __init__(
         self,
         window,
-        freshclam_config,
-        clamd_config,
-        freshclam_conf_path: str,
-        clamd_conf_path: str,
-        clamd_available: bool,
-        settings_manager,
-        scheduler,
+        state_provider: Callable[[], PreferenceSaveState],
+        workflow_runner: Callable[[PreparedPreferenceSave], PreferenceSaveResult],
+        result_handler: Callable[[PreferenceSaveResult, PreferenceSaveState], None],
         freshclam_widgets: dict,
         clamd_widgets: dict,
         onaccess_widgets: dict,
         scheduled_widgets: dict,
     ):
         """
-        Initialize the SavePage.
+        Initialize the GTK adapter for the Save & Apply workflow.
 
-        Args:
-            window: Parent PreferencesWindow instance (for dialog presentation and config access)
-            freshclam_config: (Deprecated) Now accessed from window._freshclam_config
-            clamd_config: (Deprecated) Now accessed from window._clamd_config
-            freshclam_conf_path: Path to freshclam.conf file
-            clamd_conf_path: Path to clamd.conf file
-            clamd_available: Whether clamd.conf is available
-            settings_manager: SettingsManager instance for app settings
-            scheduler: Scheduler instance for scheduled scan management
-            freshclam_widgets: Dictionary of freshclam form widgets
-            clamd_widgets: Dictionary of clamd form widgets
-            onaccess_widgets: Dictionary of on-access form widgets
-            scheduled_widgets: Dictionary of scheduled scan form widgets
-
-        Note:
-            SavePage now accesses configs from window._freshclam_config and window._clamd_config
-            to ensure it always has the latest loaded configs (not None from init time).
+        ``state_provider`` captures window-owned config state on the GTK
+        thread. ``result_handler`` receives that captured state with the
+        durable result so the window only commits configs for its still-selected
+        paths before this page renders the workflow outcome.
         """
         self._window = window
-        # Note: Configs are accessed from window._freshclam_config and window._clamd_config
-        # to ensure we always have the latest loaded configs (not None from init time)
-        self._freshclam_conf_path = freshclam_conf_path
-        self._clamd_conf_path = clamd_conf_path
-        self._clamd_available = clamd_available
-        self._settings_manager = settings_manager
-        self._scheduler = scheduler
-
-        # Store widget dictionaries for data collection
+        self._state_provider = state_provider
+        self._workflow_runner = workflow_runner
+        self._result_handler = result_handler
+        # Store widget dictionaries for click-time data collection.
         self._freshclam_widgets = freshclam_widgets
         self._clamd_widgets = clamd_widgets
         self._onaccess_widgets = onaccess_widgets
         self._scheduled_widgets = scheduled_widgets
 
-        # Track saving state
+        # Track saving state.
         self._is_saving = False
-        self._scheduler_error = None
 
         # Store references for the Flatpak privileged-helper status row.
         self._privileged_helper_row = None
@@ -120,7 +90,7 @@ class SavePage(PreferencesPageMixin):
         self._privileged_helper_status: PrivilegedHelperStatus | None = None
         self._privileged_helper_status_thread = None
 
-        # Store reference to save button
+        # Store reference to save button.
         self._save_button = None
 
     def _show_error_dialog(self, title: str, message: str):
@@ -404,325 +374,98 @@ class SavePage(PreferencesPageMixin):
         self._refresh_privileged_helper_status()
 
     def _on_save_clicked(self, button: Gtk.Button):
-        """
-        Handle save button click event.
-
-        Validates configuration, backs up current configs, and saves
-        changes using elevated privileges (pkexec) if needed.
-
-        Args:
-            button: The clicked button widget
-        """
-        # Prevent multiple simultaneous saves
+        """Collect values and start one detached preference-save workflow."""
         if self._is_saving:
             return
 
         self._is_saving = True
         button.set_sensitive(False)
 
-        # Collect form data from all pages
-        freshclam_updates = DatabasePage.collect_data(self._freshclam_widgets)
-        clamd_updates = ScannerPage.collect_data(self._clamd_widgets, self._clamd_available)
-        onaccess_updates = OnAccessPage.collect_data(self._onaccess_widgets, self._clamd_available)
-        scheduled_updates = ScheduledPage.collect_data(self._scheduled_widgets)
-
-        # Validate the freshclam configuration proposal that will be written.
-        prospective_freshclam_config: ClamAVConfig | None = None
-        if freshclam_updates:
-            if not self._window._freshclam_config:
-                self._show_error_dialog(
-                    _("Configuration Error"),
-                    _(
-                        "Cannot save freshclam settings: Configuration failed to load.\n\n"
-                        "This may be due to:\n"
-                        "- Missing configuration file\n"
-                        "- Insufficient permissions\n"
-                        "- Disk space issues (Flatpak)\n\n"
-                        "Check the application logs for details."
-                    ),
-                )
-                self._is_saving = False
-                button.set_sensitive(True)
-                return
-
-            freshclam_config = self._window._freshclam_config
-            prospective_freshclam_config = self._copy_config_for_path(
-                freshclam_config, freshclam_config.file_path
-            )
-            self._apply_updates_to_config(prospective_freshclam_config, freshclam_updates)
-            is_valid, errors = validate_config(prospective_freshclam_config)
-            if not is_valid:
-                self._show_error_dialog(_("Validation Error"), "\n".join(errors))
-                self._is_saving = False
-                button.set_sensitive(True)
-                return
-
-        prospective_clamd_config: ClamAVConfig | None = None
-        if (clamd_updates or onaccess_updates) and self._clamd_available:
-            if not self._window._clamd_config:
-                self._show_error_dialog(
-                    _("Configuration Error"),
-                    _(
-                        "Cannot save clamd settings: Configuration failed to load.\n\n"
-                        "Check that {path} exists and is readable."
-                    ).format(path=self._clamd_conf_path),
-                )
-                self._is_saving = False
-                button.set_sensitive(True)
-                return
-
-            # Validate the configuration that will actually be written, not the
-            # one that was loaded (#181).  A stale out-of-range value on disk
-            # must not block the edit that repairs it, and an out-of-range edit
-            # must not slip through because the pre-update config looked valid.
-            prospective_clamd_config = self._prospective_clamd_config(
-                clamd_updates, onaccess_updates
-            )
-            is_valid, errors = validate_config(prospective_clamd_config)
-            if not is_valid:
-                self._show_error_dialog(_("Validation Error"), "\n".join(errors))
-                self._is_saving = False
-                button.set_sensitive(True)
-                return
-
-        # Run save in background thread
-        save_thread = threading.Thread(
-            target=self._save_configs_thread,
-            args=(
-                freshclam_updates,
-                clamd_updates,
-                onaccess_updates,
-                scheduled_updates,
-                button,
-                prospective_clamd_config,
-                prospective_freshclam_config,
+        state = self._state_provider()
+        request = PreferenceSaveRequest(
+            state=state,
+            freshclam_updates=DatabasePage.collect_data(self._freshclam_widgets),
+            clamd_updates=ScannerPage.collect_data(self._clamd_widgets, state.clamd_available),
+            onaccess_updates=OnAccessPage.collect_data(
+                self._onaccess_widgets, state.clamd_available
             ),
+            scheduled_updates=ScheduledPage.collect_data(self._scheduled_widgets),
         )
-        save_thread.daemon = True
+        try:
+            prepared = prepare_preference_save(request)
+        except PreferenceSaveValidationError as error:
+            self._show_error_dialog(error.title, error.message)
+            self._is_saving = False
+            button.set_sensitive(True)
+            return
+
+        save_thread = threading.Thread(
+            target=self._save_prepared,
+            args=(prepared, state, button),
+            daemon=True,
+        )
         save_thread.start()
 
-    @staticmethod
-    def _apply_updates_to_config(config: ClamAVConfig, updates: dict) -> None:
-        """Apply collected widget updates to a parsed ClamAV config."""
-        for key, value in updates.items():
-            if isinstance(value, list):
-                config.remove_key(key)
-                for item in value:
-                    config.add_value(key, item)
-            else:
-                config.set_value(key, value)
-
-    @staticmethod
-    def _copy_config_for_path(config: ClamAVConfig, file_path: Path) -> ClamAVConfig:
-        """Return a writable copy of ``config`` targeting ``file_path``."""
-        return ClamAVConfig(
-            file_path=file_path,
-            values=copy.deepcopy(config.values),
-            raw_lines=list(config.raw_lines),
-        )
-
-    def _prospective_clamd_config(
-        self, clamd_updates: dict, onaccess_updates: dict
-    ) -> ClamAVConfig:
-        """Return the loaded clamd config with the collected updates applied.
-
-        Validation has to run against this proposal rather than against the
-        loaded config: the loaded config may still hold the stale out-of-range
-        value the pending edit repairs, and a bad edit only becomes visible
-        once it has been applied.
-        """
-        clamd_config = self._window._clamd_config
-        prospective = self._copy_config_for_path(clamd_config, clamd_config.file_path)
-        self._apply_updates_to_config(prospective, clamd_updates)
-        self._apply_updates_to_config(prospective, onaccess_updates)
-        return prospective
-
-    @classmethod
-    def _prepare_config_for_write(
-        cls,
-        config: ClamAVConfig | None,
-        update_groups: tuple[dict, ...],
-        prospective_config: ClamAVConfig | None,
-    ) -> ClamAVConfig | None:
-        """Return a changed config proposal, or None when no write is needed."""
-        if not config or not update_groups:
-            return None
-
-        before = config.to_string()
-        proposed_config = prospective_config
-        if proposed_config is None:
-            proposed_config = cls._copy_config_for_path(config, config.file_path)
-            for updates in update_groups:
-                cls._apply_updates_to_config(proposed_config, updates)
-
-        after = proposed_config.to_string()
-        if not isinstance(before, str) or not isinstance(after, str) or before != after:
-            return proposed_config
-        return None
-
-    def _prepare_system_freshclam_config(
+    def _save_prepared(
         self,
-        freshclam_updates: dict,
-        prospective_freshclam_config: ClamAVConfig | None,
-    ) -> ClamAVConfig | None:
-        """Return a changed proposal for the system freshclam configuration."""
-        # User-local freshclam config would be ignored by the current update
-        # path, so freshclam changes intentionally stay on the system/elevated
-        # path.
-        return self._prepare_config_for_write(
-            self._window._freshclam_config,
-            (freshclam_updates,) if freshclam_updates else (),
-            prospective_freshclam_config,
-        )
-
-    def _save_configs_thread(
-        self,
-        freshclam_updates: dict,
-        clamd_updates: dict,
-        onaccess_updates: dict,
-        scheduled_updates: dict,
+        prepared: PreparedPreferenceSave,
+        saved_state: PreferenceSaveState,
         button: Gtk.Button,
-        prospective_clamd_config: ClamAVConfig | None = None,
-        prospective_freshclam_config: ClamAVConfig | None = None,
-    ):
-        """
-        Save configuration files in a background thread.
+    ) -> None:
+        """Run persistence without accessing GTK widgets or window state."""
+        result = self._workflow_runner(prepared)
+        GLib.idle_add(self._complete_save, result, saved_state, button)
 
-        Uses elevated privileges (pkexec) to write configuration files
-        and manages error handling with thread-safe communication.
+    def _complete_save(
+        self,
+        result: PreferenceSaveResult,
+        saved_state: PreferenceSaveState,
+        button: Gtk.Button,
+    ) -> bool:
+        """Commit durable state and render the terminal result on GTK's thread."""
+        self._result_handler(result, saved_state)
 
-        Args:
-            freshclam_updates: Dictionary of freshclam.conf updates.
-            clamd_updates: Dictionary of clamd.conf updates.
-            onaccess_updates: Dictionary of On-Access scanning settings
-                (clamd.conf).
-            scheduled_updates: Dictionary of scheduled scan settings.
-            button: The save button to re-enable after completion.
-            prospective_clamd_config: Validated clamd.conf proposal built in
-                _on_save_clicked, persisted only when its write succeeds, or None
-                when no clamd changes were collected for validation.
-            prospective_freshclam_config: Validated freshclam.conf proposal built
-                in _on_save_clicked, persisted only when its write succeeds, or
-                None when no freshclam changes were collected for validation.
-        """
-        durable_groups: list[str] = []
-        try:
-            # Backup configurations
-            backup_config(self._freshclam_conf_path)
-            if self._clamd_available:
-                backup_config(self._clamd_conf_path)
-
-            system_freshclam_config = self._prepare_system_freshclam_config(
-                freshclam_updates, prospective_freshclam_config
-            )
-            system_clamd_config = self._prepare_config_for_write(
-                self._window._clamd_config,
-                (clamd_updates, onaccess_updates) if clamd_updates or onaccess_updates else (),
-                prospective_clamd_config,
-            )
-            configs_to_write = [
-                config
-                for config in (system_freshclam_config, system_clamd_config)
-                if config is not None
-            ]
-            config_changes_applied = False
-            config_write_warning: str | None = None
-
-            if configs_to_write:
-                success, error = write_configs_with_elevation(configs_to_write)
-                if not success:
-                    raise Exception(f"Failed to save configuration files: {error}")
-                config_changes_applied = True
-                durable_groups.append(_("ClamAV configuration files"))
-                if error is not None:
-                    config_write_warning = error
-
-                # Once the helper reports success, the candidate configs are
-                # durable. Queue their main-thread commit before any subsequent
-                # settings or scheduler work so live memory cannot lag disk if
-                # one of those later operations fails.
-                def commit_written_configs():
-                    if system_freshclam_config is not None:
-                        self._window._freshclam_config = system_freshclam_config
-                    if system_clamd_config is not None:
-                        self._window._clamd_config = system_clamd_config
-
-                GLib.idle_add(commit_written_configs)
-
-            # Save scheduled scan settings atomically before acting on them.
-            if scheduled_updates:
-                if not self._settings_manager.set_many(scheduled_updates):
-                    raise Exception(_("Failed to save scheduled scan settings"))
-                durable_groups.append(_("Scheduled scan preferences"))
-                # Enable or disable scheduler based on settings
-                if scheduled_updates.get("scheduled_scans_enabled"):
-                    success, error = self._scheduler.enable_schedule(
-                        frequency=scheduled_updates.get("schedule_frequency", "daily"),
-                        time=scheduled_updates.get("schedule_time", "02:00"),
-                        targets=scheduled_updates.get("schedule_targets", []),
-                        day_of_week=scheduled_updates.get("schedule_day_of_week", 0),
-                        day_of_month=scheduled_updates.get("schedule_day_of_month", 1),
-                        skip_on_battery=scheduled_updates.get("schedule_skip_on_battery", True),
-                        auto_quarantine=scheduled_updates.get("schedule_auto_quarantine", False),
-                    )
-                    if not success:
-                        raise Exception(f"Failed to enable scheduled scans: {error}")
-                else:
-                    # Disable scheduler if it was previously enabled
-                    success, error = self._scheduler.disable_schedule()
-                    if not success:
-                        raise Exception(f"Failed to disable scheduled scans: {error}")
-
-            # Only report success if something was actually applied.  When the
-            # user opens Save without modifying (or ever materializing) a
-            # config-backed page, nothing is collected and nothing is written;
-            # claiming "Configuration saved" in that case is misleading and was
-            # one way the Flatpak persistence bug (#136) surfaced as a phantom
-            if config_changes_applied or scheduled_updates:
-                if config_write_warning is not None:
-                    GLib.idle_add(
-                        self._show_success_dialog,
-                        _("Configuration Saved with Warning"),
-                        _("Configuration saved with a warning:\n\n{warning}").format(
-                            warning=config_write_warning
-                        ),
-                    )
-                else:
-                    GLib.idle_add(
-                        self._show_success_dialog,
-                        _("Configuration Saved"),
-                        _(
-                            "Configuration saved. Active ClamAV services were restarted where needed."
-                        ),
-                    )
-            else:
-                GLib.idle_add(
-                    self._show_success_dialog,
-                    _("No Changes to Apply"),
-                    _(
-                        "No configuration changes were detected, so nothing was saved. "
-                        "Open a settings page and modify a value before saving."
-                    ),
-                )
-        except Exception as e:
-            # Store error for thread-safe handling
-            self._scheduler_error = str(e)
-            if durable_groups:
-                GLib.idle_add(
-                    self._show_error_dialog,
-                    _("Changes Partially Applied"),
-                    _(
-                        "The following changes were saved before another change failed:\n"
-                        "{saved_groups}\n\n"
-                        "Error: {error}\n\n"
-                        "Review your settings and save again."
-                    ).format(
-                        saved_groups=", ".join(durable_groups),
-                        error=str(e),
+        if result.status is SaveStatus.SAVED:
+            if result.config_write_warning is not None:
+                self._show_success_dialog(
+                    _("Configuration Saved with Warning"),
+                    _("Configuration saved with a warning:\n\n{warning}").format(
+                        warning=result.config_write_warning
                     ),
                 )
             else:
-                GLib.idle_add(self._show_error_dialog, _("Save Failed"), str(e))
-        finally:
-            self._is_saving = False
-            GLib.idle_add(button.set_sensitive, True)
+                self._show_success_dialog(
+                    _("Configuration Saved"),
+                    _("Configuration saved. Active ClamAV services were restarted where needed."),
+                )
+        elif result.status is SaveStatus.NO_CHANGES:
+            self._show_success_dialog(
+                _("No Changes to Apply"),
+                _(
+                    "No configuration changes were detected, so nothing was saved. "
+                    "Open a settings page and modify a value before saving."
+                ),
+            )
+        elif result.status is SaveStatus.PARTIALLY_APPLIED:
+            group_names = {
+                DurableGroup.CLAMAV_CONFIGS: _("ClamAV configuration files"),
+                DurableGroup.SCHEDULED_PREFERENCES: _("Scheduled scan preferences"),
+            }
+            self._show_error_dialog(
+                _("Changes Partially Applied"),
+                _(
+                    "The following changes were saved before another change failed:\n"
+                    "{saved_groups}\n\n"
+                    "Error: {error}\n\n"
+                    "Review your settings and save again."
+                ).format(
+                    saved_groups=", ".join(group_names[group] for group in result.durable_groups),
+                    error=result.error,
+                ),
+            )
+        else:
+            self._show_error_dialog(_("Save Failed"), result.error or _("Unknown error"))
+
+        self._is_saving = False
+        button.set_sensitive(True)
+        return False

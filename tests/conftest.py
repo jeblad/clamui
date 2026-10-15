@@ -214,34 +214,40 @@ def reset_flatpak_cache():
 
 def _clear_src_modules():
     """
-    Clear all cached src.* modules from sys.modules.
+    Clear the complete src package tree from sys.modules.
 
-    This ensures each test starts with a fresh import of source modules,
-    preventing stale mock references from affecting subsequent tests.
+    The root package holds child-module attributes, so it must be removed with
+    src.* modules. Leaving it behind can retain links to modules from a
+    previous import cycle.
     """
-    modules_to_remove = [mod for mod in sys.modules if mod.startswith("src.")]
-    for mod in modules_to_remove:
-        del sys.modules[mod]
+    modules_to_remove = [
+        module_name
+        for module_name in sys.modules
+        if module_name == "src" or module_name.startswith("src.")
+    ]
+    for module_name in modules_to_remove:
+        del sys.modules[module_name]
 
 
 @contextlib.contextmanager
 def preserve_displaced_modules(match=None):
     """Snapshot matching sys.modules entries and restore them on exit.
 
-    Test modules that clear or mock src.* (or gi/matplotlib) modules must put
-    the ORIGINAL module objects back afterwards: other test modules bind src
-    symbols at collection time, and patching a re-imported module while
-    calling a stale reference makes assertions silently miss (see the
-    tests/cli/test_scan_cmd.py pollution this pattern fixed). Use this instead
-    of hand-rolling the snapshot/restore idiom.
+    Test modules that clear or mock the src package tree (or gi/matplotlib
+    modules) must put the ORIGINAL module objects back afterwards: other test
+    modules bind src symbols at collection time, and patching a re-imported
+    module while calling a stale reference makes assertions silently miss (see
+    the tests/cli/test_scan_cmd.py pollution this pattern fixed). The default
+    includes src itself because package attributes link to child modules. Use
+    this instead of hand-rolling the snapshot/restore idiom.
 
     Args:
-        match: Predicate on the module name; defaults to src.* modules.
+        match: Predicate on the module name; defaults to the complete src package tree.
     """
     if match is None:
 
         def match(name):
-            return name.startswith("src.")
+            return name == "src" or name.startswith("src.")
 
     snapshot = {name: module for name, module in sys.modules.items() if match(name)}
     try:
@@ -260,11 +266,10 @@ def preserve_displaced_modules(match=None):
 @pytest.fixture
 def mock_gi_modules():
     """
-    Unified GTK/GLib mocking for UI tests.
-
     This fixture provides consistent mocking of GTK/GLib/Adw modules across
     all test files. It:
-    - Temporarily clears cached src.* modules while preserving the Flatpak module
+    - Temporarily clears cached source modules and restores the complete
+      original source package tree
     - Sets up real base classes for widgets (required for object.__new__)
     - Provides access to mock objects via returned dict
 
@@ -281,7 +286,7 @@ def mock_gi_modules():
     Yields:
         dict: Dictionary containing mock objects for gtk, adw, gio, glib
     """
-    with preserve_displaced_modules(lambda name: name == "src.core.flatpak"):
+    with preserve_displaced_modules():
         yield from _mock_gi_modules()
 
 
@@ -396,7 +401,7 @@ def _mock_gi_modules():
             "repository": mock_repository,
         }
 
-    # Cleanup after test; the fixture wrapper restores the original Flatpak module.
+    # Cleanup after test; the fixture wrapper restores the original source package tree.
     _clear_src_modules()
 
 

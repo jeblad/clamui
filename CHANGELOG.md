@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Moved Save & Apply proposal validation and persistence into a GTK-free workflow, with click-time snapshots and explicit durable outcomes for partial failures.
+- Consolidated standalone and daemon scan-result interpretation while retaining backend-specific counting and error semantics.
+
+### Fixed
+
+- Restored the complete source-module tree after GTK-mocked tests so later scanner tests patch the correct module objects.
+- Prevented delayed Save & Apply completion from replacing a newly selected configuration file with the previous save target.
+
 ## [0.4.1] - 2026-10-12
 
 ### Added

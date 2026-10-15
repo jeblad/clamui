@@ -1341,3 +1341,124 @@ class TestAuthorizedConfigRead:
         idle_add.assert_called_once_with(
             window._apply_authorized_config_read, "clamd", config, None
         )
+
+
+class TestPreferenceSaveBoundary:
+    def test_capture_save_state_uses_current_selected_paths(self, mock_gi_modules):
+        from src.ui.preferences.window import PreferencesWindow
+
+        window = mock.MagicMock()
+        window._freshclam_config = mock.sentinel.freshclam
+        window._clamd_config = mock.sentinel.clamd
+        window._freshclam_conf_path = "/tmp/chosen/freshclam.conf"
+        window._clamd_conf_path = "/tmp/chosen/clamd.conf"
+        window._clamd_available = True
+
+        state = PreferencesWindow._capture_preference_save_state(window)
+
+        assert state.freshclam_config is mock.sentinel.freshclam
+        assert state.clamd_config is mock.sentinel.clamd
+        assert state.freshclam_conf_path == "/tmp/chosen/freshclam.conf"
+        assert state.clamd_conf_path == "/tmp/chosen/clamd.conf"
+        assert state.clamd_available is True
+
+    @pytest.mark.parametrize(
+        ("config_attr", "result_field", "status"),
+        [
+            ("_freshclam_config", "freshclam_config", "partially_applied"),
+            ("_clamd_config", "clamd_config", "saved"),
+        ],
+    )
+    def test_result_handler_commits_durable_config_for_same_selection(
+        self, mock_gi_modules, config_attr, result_field, status
+    ):
+        from src.core.preferences_save import (
+            PreferenceSaveResult,
+            PreferenceSaveState,
+            SaveStatus,
+        )
+        from src.ui.preferences.window import PreferencesWindow
+
+        window = mock.MagicMock()
+        window._freshclam_config = mock.sentinel.old_freshclam
+        window._clamd_config = mock.sentinel.old_clamd
+        window._freshclam_conf_path = "/tmp/selected/freshclam.conf"
+        window._clamd_conf_path = "/tmp/selected/clamd.conf"
+        saved_state = PreferenceSaveState(
+            freshclam_config=window._freshclam_config,
+            clamd_config=window._clamd_config,
+            freshclam_conf_path=window._freshclam_conf_path,
+            clamd_conf_path=window._clamd_conf_path,
+            clamd_available=True,
+        )
+        result = PreferenceSaveResult(
+            status=SaveStatus(status),
+            **{result_field: mock.sentinel.new_durable_config},
+        )
+
+        PreferencesWindow._apply_preference_save_result(window, result, saved_state)
+
+        assert getattr(window, config_attr) is mock.sentinel.new_durable_config
+
+    @pytest.mark.parametrize(
+        ("config_attr", "path_attr", "saved_path", "selected_path", "result_field"),
+        [
+            (
+                "_freshclam_config",
+                "_freshclam_conf_path",
+                "/tmp/config-a/freshclam.conf",
+                "/tmp/config-b/freshclam.conf",
+                "freshclam_config",
+            ),
+            (
+                "_clamd_config",
+                "_clamd_conf_path",
+                "/tmp/config-a/clamd.conf",
+                "/tmp/config-b/clamd.conf",
+                "clamd_config",
+            ),
+        ],
+    )
+    def test_late_result_does_not_replace_changed_config_selection(
+        self,
+        mock_gi_modules,
+        config_attr,
+        path_attr,
+        saved_path,
+        selected_path,
+        result_field,
+    ):
+        """A delayed save for A cannot send the next save back to A after selecting B."""
+        from src.core.preferences_save import (
+            PreferenceSaveResult,
+            PreferenceSaveState,
+            SaveStatus,
+        )
+        from src.ui.preferences.window import PreferencesWindow
+
+        window = mock.MagicMock()
+        window._freshclam_conf_path = "/tmp/config-a/freshclam.conf"
+        window._clamd_conf_path = "/tmp/config-a/clamd.conf"
+        window._freshclam_config = mock.sentinel.freshclam_a
+        window._clamd_config = mock.sentinel.clamd_a
+        setattr(window, path_attr, saved_path)
+        saved_state = PreferenceSaveState(
+            freshclam_config=window._freshclam_config,
+            clamd_config=window._clamd_config,
+            freshclam_conf_path=window._freshclam_conf_path,
+            clamd_conf_path=window._clamd_conf_path,
+            clamd_available=True,
+        )
+        pending_config = mock.sentinel.config_before_b_load_finishes
+        setattr(window, path_attr, selected_path)
+        setattr(window, config_attr, pending_config)
+        result = PreferenceSaveResult(
+            status=SaveStatus.PARTIALLY_APPLIED,
+            **{result_field: mock.sentinel.config_a_durable},
+        )
+
+        PreferencesWindow._apply_preference_save_result(window, result, saved_state)
+        next_state = PreferencesWindow._capture_preference_save_state(window)
+
+        assert getattr(window, config_attr) is pending_config
+        assert getattr(next_state, path_attr.removeprefix("_")) == selected_path

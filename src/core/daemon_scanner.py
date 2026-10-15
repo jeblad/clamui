@@ -20,24 +20,18 @@ from gi.repository import GLib
 
 from .flatpak import is_flatpak, wrap_host_command
 from .log_manager import LogManager
+from .scan_result_interpreter import interpret_daemon_result
 from .scanner_base import (
     cleanup_process,
-    collect_clamav_warnings,
     communicate_with_cancel_check,
     create_cancelled_result,
     create_error_result,
-    is_genuine_error_line,
-    resolve_exit2_status,
     save_scan_log,
     stream_process_output,
     terminate_process_gracefully,
 )
-from .scanner_types import ScanProgress, ScanResult, ScanStatus, ThreatDetail
+from .scanner_types import ScanProgress, ScanResult, ScanStatus
 from .settings_manager import SettingsManager
-from .threat_classifier import (
-    categorize_threat,
-    classify_threat_severity_str,
-)
 from .utils import (
     check_clamd_connection,
     check_clamdscan_installed,
@@ -290,8 +284,7 @@ class DaemonScanner:
                     self._save_scan_log(result, time.monotonic() - start_time)
                     return result
 
-                # Parse the results
-                result = self._parse_results(
+                result = interpret_daemon_result(
                     path,
                     stdout,
                     stderr,
@@ -848,136 +841,6 @@ class DaemonScanner:
             elif fnmatch.fnmatch(name, pattern) or fnmatch.fnmatch(full_path, pattern):
                 return True
         return False
-
-    def _parse_results(
-        self,
-        path: str,
-        stdout: str,
-        stderr: str,
-        exit_code: int,
-        file_count: int = 0,
-        dir_count: int = 0,
-    ) -> ScanResult:
-        """
-        Parse clamdscan output into a ScanResult.
-
-        clamdscan output format is similar to clamscan but doesn't include
-        file/directory counts in the summary. These are provided separately
-        via the file_count and dir_count parameters.
-
-        Exit codes: 0=clean, 1=infected, 2=error
-
-        Args:
-            path: The scanned path
-            stdout: Standard output from clamdscan
-            stderr: Standard error from clamdscan
-            exit_code: Process exit code
-            file_count: Pre-counted number of files scanned
-            dir_count: Pre-counted number of directories scanned
-
-        Returns:
-            Parsed ScanResult
-        """
-        infected_files: list[str] = []
-        threat_details: list[ThreatDetail] = []
-        skipped_files, nonfatal_warnings, hard_error_lines = collect_clamav_warnings(stdout, stderr)
-        scanned_files = file_count
-        scanned_dirs = dir_count
-
-        # Regex pattern: "/path/to/file: ThreatName FOUND"
-        # Uses rsplit(":") to handle colons in Windows paths (C:\)
-        # Also extracts threat name by removing " FOUND" suffix.
-        for raw_line in stdout.splitlines():
-            line = raw_line.strip()
-            if not line.endswith("FOUND"):
-                continue
-
-            parts = line.rsplit(":", 1)
-            if len(parts) != 2:
-                continue
-
-            file_path = parts[0].strip()
-            threat_part = parts[1].strip()
-            threat_name = (
-                threat_part.rsplit(" ", 1)[0].strip() if " FOUND" in threat_part else threat_part
-            )
-            infected_files.append(file_path)
-            threat_details.append(
-                ThreatDetail(
-                    file_path=file_path,
-                    threat_name=threat_name,
-                    category=categorize_threat(threat_name),
-                    severity=classify_threat_severity_str(threat_name),
-                )
-            )
-
-        infected_count = len(infected_files)
-
-        # Detections are authoritative: clamdscan returns exit code 2 when it
-        # both finds a virus and hits an error (e.g. an unreadable file), so
-        # never let an error code mask a real threat.
-        warning_message = None
-        exit2_error_message = None
-        if infected_count:
-            status = ScanStatus.INFECTED
-            if exit_code == 2 and skipped_files:
-                warning_message = f"{len(skipped_files)} file(s) could not be accessed"
-        elif exit_code == 0:
-            # Exit 0 is the daemon's authoritative success signal. Only genuine
-            # error replies (per-file "... ERROR" or clamdscan's own "ERROR:" /
-            # "LibClamAV Error:" lines) may override it - stray unrecognized
-            # warning lines must not flip a successful scan to ERROR.
-            status = (
-                ScanStatus.ERROR
-                if any(is_genuine_error_line(line) for line in hard_error_lines)
-                else ScanStatus.CLEAN
-            )
-        elif exit_code == 1:
-            status = ScanStatus.INFECTED
-        elif exit_code == 2:
-            # scanned_files here is ClamUI's own pre-count of scan targets
-            # (clamdscan reports no summary counts), so the helper compares
-            # failure signals against it instead of requiring it to be > 0.
-            status, warning_message, exit2_error_message = resolve_exit2_status(
-                stdout,
-                file_count,
-                hard_error_lines,
-                skipped_files,
-                nonfatal_warnings,
-                scanned_is_precount=True,
-            )
-        else:
-            status = ScanStatus.ERROR
-
-        error_message: str | None = None
-        if status == ScanStatus.ERROR:
-            error_message = exit2_error_message or stderr.strip() or None
-        if error_message is None and status == ScanStatus.ERROR:
-            error_message = next(iter(hard_error_lines), None)
-        if error_message is None and status == ScanStatus.ERROR:
-            for out_line in stdout.splitlines():
-                candidate = out_line.strip()
-                if not candidate or "SCAN SUMMARY" in candidate:
-                    continue
-                error_message = candidate
-                break
-        return ScanResult(
-            status=status,
-            path=path,
-            stdout=stdout,
-            stderr=stderr,
-            exit_code=exit_code,
-            infected_files=infected_files,
-            scanned_files=scanned_files,
-            scanned_dirs=scanned_dirs,
-            infected_count=infected_count,
-            error_message=error_message,
-            threat_details=threat_details,
-            skipped_files=skipped_files,
-            skipped_count=len(skipped_files),
-            warning_message=warning_message,
-            nonfatal_warnings=nonfatal_warnings,
-        )
 
     def _collect_exclusion_patterns(self, profile_exclusions: dict | None = None) -> list[str]:
         """

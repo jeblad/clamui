@@ -11,10 +11,12 @@ main loop when a core boundary must hand work back to it.
 
 | Task | Start here |
 | --- | --- |
-| Scan execution, cancellation, and result parsing | `scanner.py`, `daemon_scanner.py`, `scanner_base.py`, `scanner_types.py` |
+| Scan execution and cancellation | `scanner.py`, `daemon_scanner.py`, `scanner_base.py` |
+| Standalone/daemon result interpretation | `scan_result_interpreter.py`, `scanner_types.py` |
 | ClamAV discovery or updates | `clamav_detection.py`, `updater.py` |
 | Host execution in Flatpak | `flatpak.py` |
 | ClamAV configuration and privileged writes | `clamav_config.py`, `privileged_paths.py`, `privileged_helper.py` |
+| Save & Apply proposals and durable outcomes | `preferences_save.py` |
 | Settings, logs, or credentials | `settings_manager.py`, `log_manager.py`, `keyring_manager.py` |
 | Quarantine metadata and files | `quarantine/` and its local guide |
 

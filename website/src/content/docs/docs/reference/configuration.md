@@ -114,6 +114,12 @@ Path exclusions match a resolved directory tree; pattern exclusions use filename
 
 **Database**, **Scanner**, and **On-Access** Preferences write host `freshclam.conf` and `clamd.conf`—including from the Flatpak. They never write sandbox copies. Saving requires the trusted matching `clamui-apply-preferences` helper and polkit policy; unavailable validation or installation fails closed without changing host configuration.
 
+**Save & Apply** validates the values captured when you click Save. Configuration
+files, scheduled-scan preferences, and timer/cron changes are not one atomic
+operation: a later failure can leave earlier changes saved. **Changes Partially
+Applied** lists the groups already saved; review the reported failure before
+trying again.
+
 For an allowlisted root-only host config, select the **lock icon** on its **Configuration File** row in Preferences to request administrator access. It uses the installed trusted helper and polkit; it never changes ownership or permissions and shows helper-install guidance when unavailable.
 
 New custom configuration files are created with mode `0600`. If you directly launch a ClamAV service as a non-root account, that account must own or have read access to its selected configuration file.

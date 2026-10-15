@@ -56,6 +56,30 @@ Use relative imports inside `src/`; absolute `src.*` imports break installed pac
 
 The native-host-only `sudo clamui install-privileged-helper` installs the root-owned preference helper and polkit policy. Do not run it inside Flatpak; install the matching helper package on the host instead.
 
+## Save and scan workflow ownership
+
+`src/core/preferences_save.py` owns **Save & Apply** proposal validation and
+persistence. The preferences window supplies current configuration state;
+`SavePage` collects widget values and prepares a detached proposal on the GTK
+thread. The worker applies that proposal without reading live widgets or window
+state. Its result identifies which configs are durable, even if later settings
+or scheduler work fails. The GTK completion commits each config only if its
+selected path still matches the click-time state, then presents the outcome.
+Keep privileged writes in the existing ClamAV config writer; the workflow is not
+an atomic transaction across all destinations.
+
+`src/core/scan_result_interpreter.py` interprets both **clamscan** and
+**clamdscan** output. Shared detection and result rules live here, not in scan
+execution. The two entry points retain distinct evidence: standalone summary
+counts and progress fallback, versus daemon pre-counts and genuine error replies.
+Keep subprocess lifecycle, cancellation, and host execution in the scanner
+modules.
+
+Exercise these value-level interfaces with
+`tests/core/test_preferences_save.py` and
+`tests/core/test_scan_result_interpreter.py`; retain scanner execution and GTK
+completion coverage for their integration.
+
 ## Maintain local Repowise architecture guidance
 
 Repowise indexes and configuration live in the ignored `.repowise/` directory. They are local machine state, so do not commit them or put provider credentials in them. After creating or recovering a local index, restore this guidance block in the root `.repowise/config.yaml` before generating architecture prose:

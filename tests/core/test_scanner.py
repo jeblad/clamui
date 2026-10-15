@@ -1091,7 +1091,7 @@ Infected files: 1
 
     def test_threat_details_all_severity_levels(self):
         """Integration test: verify all severity levels are correctly assigned."""
-        from src.core.clamscan_parser import parse_clamscan_result
+        from src.core.scan_result_interpreter import interpret_clamscan_result
 
         # Create output with threats of each severity level
         mock_stdout = """
@@ -1109,7 +1109,7 @@ Scanned files: 8
 Infected files: 8
 """
 
-        result = parse_clamscan_result("/path", mock_stdout, "", 1)
+        result = interpret_clamscan_result("/path", mock_stdout, "", 1)
 
         assert len(result.threat_details) == 8
 

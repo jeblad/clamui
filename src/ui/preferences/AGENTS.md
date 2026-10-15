@@ -79,8 +79,13 @@ Wrap every user-visible string in `_()` from `core.i18n`; mark module-level
 labels that are translated only when displayed with `N_()`. Use
 `_("… {name}").format(name=value)`, not an f-string inside `_()`.
 
-Do not write `clamd.conf` or `freshclam.conf` from a page. `SavePage` gathers
-the configured widget dictionaries, validates proposed configs, backs up the
-current files, and calls `write_configs_with_elevation()` off the GTK thread.
-For Flatpak, system writes require the matching host privileged helper and
-must fail closed when it is unavailable. Keep GTK updates on the main thread.
+Do not write `clamd.conf` or `freshclam.conf` from a page. `SavePage` captures
+current config state through its window-supplied callback and collects the widget
+dictionaries on the GTK thread. `core/preferences_save.py` prepares detached,
+validated proposals and applies them in the worker through the existing config
+writer. The worker never reads live widgets or window fields. The main-thread
+completion commits configs confirmed durable only if their selected paths still
+match the captured state, then presents success or partial failure. Keep
+scheduled settings durable before provisioning the schedule.
+For Flatpak, system writes still require the matching host privileged helper and
+must fail closed when it is unavailable.

@@ -25,6 +25,12 @@ from ...core.clamav_detection import (
 )
 from ...core.flatpak import is_flatpak
 from ...core.i18n import N_, _
+from ...core.preferences_save import (
+    PreferenceSaveResult,
+    PreferenceSaveState,
+    PreparedPreferenceSave,
+    apply_preference_save,
+)
 from ...core.scheduler import Scheduler
 from ..compat import create_toolbar_view
 from ..utils import enable_escape_to_close, resolve_icon_name
@@ -187,16 +193,7 @@ class PreferencesWindow(Adw.Window, PreferencesPageMixin):
         # are repopulated/rebuilt by _apply_loaded_configs().
         self._configs_loaded = False
 
-        # Reference to the SavePage instance (created lazily). The applier
-        # syncs the path/availability snapshot it captured at construction
-        # once the background load resolves the real values.
-        self._save_page = None
-
-        # Saving state (used by SavePage)
-        self._is_saving = False
-
-        # Scheduler error storage (for thread-safe error passing)
-        self._scheduler_error = None
+        # Saving state is owned by the GTK SavePage adapter.
 
         # Sidebar and stack references
         self._sidebar_rows: dict[str, PreferencesSidebarRow] = {}
@@ -451,26 +448,46 @@ class PreferencesWindow(Adw.Window, PreferencesPageMixin):
 
     def _create_save_page(self):
         """Create the Save & Apply page."""
+        settings_manager = self._settings_manager
+        scheduler = self._scheduler
+
+        def run_workflow(prepared: PreparedPreferenceSave) -> PreferenceSaveResult:
+            return apply_preference_save(prepared, settings_manager, scheduler)
+
         save_page_instance = SavePage(
             self,
-            self._freshclam_config,
-            self._clamd_config,
-            self._freshclam_conf_path,
-            self._clamd_conf_path,
-            self._clamd_available,
-            self._settings_manager,
-            self._scheduler,
+            self._capture_preference_save_state,
+            run_workflow,
+            self._apply_preference_save_result,
             self._freshclam_widgets,
             self._clamd_widgets,
             self._onaccess_widgets,
             self._scheduled_widgets,
         )
-        # Keep a reference so _apply_loaded_configs() can sync the
-        # path/availability snapshot captured here after the background
-        # config resolution finishes.
-        self._save_page = save_page_instance
         page = save_page_instance.create_page()
         self._add_page_to_stack("save", page)
+
+    def _capture_preference_save_state(self) -> PreferenceSaveState:
+        """Capture all window-owned configuration state for one Save click."""
+        return PreferenceSaveState(
+            freshclam_config=self._freshclam_config,
+            clamd_config=self._clamd_config,
+            freshclam_conf_path=self._freshclam_conf_path,
+            clamd_conf_path=self._clamd_conf_path,
+            clamd_available=self._clamd_available,
+        )
+
+    def _apply_preference_save_result(
+        self, result: PreferenceSaveResult, saved_state: PreferenceSaveState
+    ) -> None:
+        """Commit durable configs only while their selected paths remain current."""
+        if (
+            result.freshclam_config is not None
+            and saved_state.freshclam_conf_path == self._freshclam_conf_path
+        ):
+            self._freshclam_config = result.freshclam_config
+        if result.clamd_config is not None and saved_state.clamd_conf_path == self._clamd_conf_path:
+            self._clamd_config = result.clamd_config
 
     def _ensure_page_created(self, page_id: str):
         """Create a page on-demand if it hasn't been created yet.
@@ -667,8 +684,8 @@ class PreferencesWindow(Adw.Window, PreferencesPageMixin):
         after path resolution and ``_load_configs_io`` complete. Rebuilds any
         config-backed page that was created before ``_clamd_available`` was
         known (Scanner/OnAccess build their field groups only when clamd is
-        available), syncs the SavePage path/availability snapshot, populates
-        all config-backed fields, and surfaces load errors. See U2.
+        available), populates all config-backed fields, and surfaces load
+        errors. See U2.
         """
         # Scanner & On-Access pages build their config field groups only when
         # clamd_available is True. If the user navigated to either before the
@@ -684,13 +701,6 @@ class PreferencesWindow(Adw.Window, PreferencesPageMixin):
         # resolved non-default freshclam path is reflected. See U2 review.
         if "database" in self._created_pages:
             self._rebuild_page("database")
-
-        # Sync the SavePage snapshot of paths/availability it captured at
-        # construction with the now-resolved values.
-        if self._save_page is not None:
-            self._save_page._freshclam_conf_path = self._freshclam_conf_path
-            self._save_page._clamd_conf_path = self._clamd_conf_path
-            self._save_page._clamd_available = self._clamd_available
 
         # Populate config-backed fields for any already-created pages. The
         # _populate_*_fields() helpers guard on page_id in _created_pages and
