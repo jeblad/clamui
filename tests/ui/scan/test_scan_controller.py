@@ -721,7 +721,7 @@ class TestProgressCallback:
             files_scanned=1,
             files_total=10,
             infected_count=0,
-            infected_files=[],
+            new_threats=(),
         )
 
         # First call should go through
@@ -732,6 +732,61 @@ class TestProgressCallback:
 
         # Only first call should have triggered idle_add
         assert mock_gi_for_controller.idle_add.call_count == 1
+
+    def test_progress_callback_delivers_detection_only_delta(
+        self, mock_gi_for_controller, scanner, settings
+    ):
+        """A changed finding name must not be discarded because counts match."""
+        if "src.ui.scan.scan_controller" in sys.modules:
+            del sys.modules["src.ui.scan.scan_controller"]
+        from src.core.scanner_types import ScanProgress
+        from src.ui.scan.scan_controller import ScanController
+
+        ctrl = ScanController(scanner, settings)
+        on_progress = MagicMock()
+        ctrl.set_callbacks(on_progress=on_progress)
+        callback = ctrl._create_progress_callback()
+        clean = ScanProgress(
+            current_file="/test", files_scanned=1, files_total=10, infected_count=0
+        )
+        found = ScanProgress(
+            current_file="/test",
+            files_scanned=1,
+            files_total=10,
+            infected_count=1,
+            new_threats=(("/test", "Changed.Name"),),
+        )
+
+        with patch("src.ui.scan.scan_controller.time.monotonic", side_effect=[1.0, 1.01]):
+            callback(clean)
+            callback(found)
+
+        assert on_progress.call_count == 2
+        assert on_progress.call_args_list[-1].args[0].new_threats == found.new_threats
+
+    def test_progress_callback_captures_completed_target_baseline(
+        self, mock_gi_for_controller, scanner, settings
+    ):
+        """A delayed target callback keeps its own cumulative-file baseline."""
+        if "src.ui.scan.scan_controller" in sys.modules:
+            del sys.modules["src.ui.scan.scan_controller"]
+        from src.core.scanner_types import ScanProgress
+        from src.ui.scan.scan_controller import ScanController
+
+        ctrl = ScanController(scanner, settings)
+        on_progress = MagicMock()
+        ctrl.set_callbacks(on_progress=on_progress)
+        callback = ctrl._create_progress_callback(completed_files_before_target=12)
+        progress = ScanProgress(
+            current_file="/next",
+            files_scanned=3,
+            files_total=10,
+            infected_count=0,
+        )
+
+        callback(progress)
+
+        assert on_progress.call_args.args[1] == 12
 
 
 # =============================================================================

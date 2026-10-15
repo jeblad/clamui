@@ -1647,39 +1647,31 @@ class TestScannerCancelEdgeCases:
         assert scanner._cancel_event.is_set() is True
 
 
-class TestScanProgressSnapshot:
-    """Tests that ScanProgress carries point-in-time snapshots of infections."""
+class TestScanProgressDeltas:
+    """Tests that ScanProgress reports only point-in-time threat deltas."""
 
-    def test_progress_infected_files_snapshot_is_stable(self):
-        """A progress snapshot must keep len(infected_files) == infected_count.
-
-        The on_line callback keeps appending to the live infected_files list; a
-        progress object captured mid-scan must not grow as later rows arrive.
-        """
+    def test_progress_delivers_ordered_threat_deltas_between_clean_events(self):
         scanner = Scanner()
         captured: list = []
 
         def fake_stream(process, cancel_check, on_line):
+            on_line("Scanning /home/user/clean-first.txt")
             on_line("/home/user/a.exe: Eicar-Test-Signature FOUND")
+            on_line("Scanning /home/user/clean-second.txt")
             on_line("/home/user/b.exe: Win.Trojan.Generic FOUND")
-            on_line("/home/user/c.exe: Win.Trojan.Other FOUND")
             return "", "", False
 
         with mock.patch("src.core.scanner.stream_process_output", side_effect=fake_stream):
             scanner._scan_with_progress(mock.MagicMock(), captured.append, None)
 
-        # Three FOUND lines -> three progress updates.
-        assert len(captured) == 3
-        # The first snapshot must reflect only the first infection, even after
-        # the later appends mutated the live list.
-        assert captured[0].infected_count == 1
-        assert len(captured[0].infected_files) == 1
-        assert captured[0].infected_files == ["/home/user/a.exe"]
-        assert len(captured[0].infected_threats) == 1
-        # Each snapshot stays consistent with its own count.
-        for progress in captured:
-            assert len(progress.infected_files) == progress.infected_count
-        assert len(captured[-1].infected_files) == 3
+        assert [progress.infected_count for progress in captured] == [0, 1, 1, 2]
+        assert [progress.new_threats for progress in captured] == [
+            (),
+            (("/home/user/a.exe", "Eicar-Test-Signature"),),
+            (),
+            (("/home/user/b.exe", "Win.Trojan.Generic"),),
+        ]
+        assert isinstance(captured[1].new_threats, tuple)
 
 
 class TestPatternValidationEdgeCases:

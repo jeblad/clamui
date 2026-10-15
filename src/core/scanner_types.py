@@ -51,17 +51,14 @@ class ScanProgress:
     infected_count: int
     """Number of infections found so far."""
 
-    infected_files: list[str]
-    """List of infected file paths found so far."""
+    new_threats: tuple[tuple[str, str], ...] = ()
+    """New (file path, threat name) pairs reported by this update."""
 
     bytes_scanned: int = 0
     """Number of bytes processed (if available from scanner output)."""
 
     estimate_exceeded: bool = False
     """True if the number of files scanned has exceeded the initial estimate."""
-
-    infected_threats: dict[str, str] | None = None
-    """Map of file path -> threat name for infected files found so far."""
 
     @property
     def percentage(self) -> float | None:

@@ -19,7 +19,8 @@ from enum import Enum
 from gi.repository import GLib
 
 from ...core.result_formatters import compose_scan_warning
-from ...core.scanner import Scanner, ScanProgress, ScanResult, ScanStatus
+from ...core.scanner import Scanner
+from ...core.scanner_types import ScanProgress, ScanResult, ScanStatus
 from ...core.settings_manager import SettingsManager
 
 logger = logging.getLogger(__name__)
@@ -181,14 +182,18 @@ class ScanController:
             if self._settings:
                 show_live = self._settings.get("show_live_progress", True)
 
-            progress_callback = self._create_progress_callback() if show_live else None
-
             for idx, path in enumerate(paths, start=1):
                 if self._cancel_all:
                     result.status = ScanStatus.CANCELLED
                     break
 
                 self._current_target_idx = idx
+                completed_files_before_target = self._cumulative_files
+                progress_callback = (
+                    self._create_progress_callback(completed_files_before_target)
+                    if show_live
+                    else None
+                )
 
                 if self._on_target_progress:
                     GLib.idle_add(self._on_target_progress, idx, total_targets, path)
@@ -278,23 +283,24 @@ class ScanController:
         if scan.warning_message and scan.warning_message not in agg.warning_messages:
             agg.warning_messages.append(scan.warning_message)
 
-    def _create_progress_callback(self):
-        """Create throttled progress callback."""
-        MIN_INTERVAL = 0.1
-        last_update = [0.0]
+    def _create_progress_callback(self, completed_files_before_target: int = 0):
+        """Create a throttled callback that never drops finding deltas."""
+        min_interval = 0.1
+        last_update = 0.0
         controller_self = self
 
         def callback(progress: ScanProgress):
+            nonlocal last_update
             now = time.monotonic()
-            if now - last_update[0] < MIN_INTERVAL:
+            if not progress.new_threats and now - last_update < min_interval:
                 return
-            last_update[0] = now
+            last_update = now
 
             if controller_self._on_progress:
                 GLib.idle_add(
                     controller_self._on_progress,
                     progress,
-                    controller_self._cumulative_files,
+                    completed_files_before_target,
                     controller_self._total_targets,
                 )
 

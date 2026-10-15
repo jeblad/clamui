@@ -75,30 +75,32 @@ def _get_locale_dir() -> str | None:
     return None
 
 
-def _init_gettext():
-    """Initialize gettext with the appropriate locale directory."""
+def _init_gettext() -> gettext.NullTranslations:
+    """Initialize gettext and return the process-wide translation catalog."""
     locale_dir = _get_locale_dir()
 
     if locale_dir:
         gettext.bindtextdomain(DOMAIN, locale_dir)
 
     gettext.textdomain(DOMAIN)
+    return gettext.translation(DOMAIN, localedir=locale_dir, fallback=True)
 
 
 def apply_language_override(language_code: str) -> None:
     """
-    Apply a language override by setting the LANGUAGE environment variable.
+    Set the language for a future process startup.
 
-    Call this BEFORE _init_gettext() (i.e. before this module is imported
-    elsewhere) for it to take effect on all gettext lookups.
+    ``src.main`` applies the configured language before importing this module.
+    The catalog is fixed when this module is imported, so callers must restart
+    the process after changing the preference.
 
     Args:
         language_code: An ISO language code (e.g. "de", "zh_CN") or
-                       "auto" to use the system default.
+            "auto" to use the system default.
     """
     if language_code and language_code != "auto":
         os.environ["LANGUAGE"] = language_code
-        logger.info("Language override applied: %s", language_code)
+        logger.info("Language override will apply after restart: %s", language_code)
 
 
 def get_available_languages() -> list[tuple[str, str]]:
@@ -179,13 +181,12 @@ def get_available_languages() -> list[tuple[str, str]]:
     return languages
 
 
-# Initialize on import
-_init_gettext()
-
-# Export translation functions
-_ = gettext.gettext
-ngettext = gettext.ngettext
-pgettext = gettext.pgettext
+# Load the catalog once at process startup. The exported bound methods retain
+# gettext's existing API without resolving the catalog for each translated row.
+_translation = _init_gettext()
+_ = _translation.gettext
+ngettext = _translation.ngettext
+pgettext = _translation.pgettext
 _TRANSLATION_FUNCTIONS = (_, ngettext, pgettext)
 
 # N_ marks strings for extraction by xgettext but returns them unchanged.

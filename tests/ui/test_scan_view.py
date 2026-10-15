@@ -14,6 +14,8 @@ Tests cover:
 
 import os
 import sys
+import threading
+from collections import deque
 from unittest import mock
 
 import pytest
@@ -121,7 +123,7 @@ def mock_scan_view(scan_view_class):
     view._status_detail_content = ""
     view._status_detail_title_text = ""
 
-    # Live progress Adwaita widgets (used by _stop_progress_pulse, _update_live_progress)
+    # Live progress Adwaita widgets used by progress cleanup and rendering.
     view._progress_group = mock.MagicMock()
     view._current_file_row = mock.MagicMock()
     view._file_spinner = mock.MagicMock()
@@ -131,6 +133,15 @@ def mock_scan_view(scan_view_class):
     # Return None so the while-loop in _stop_progress_pulse exits immediately
     view._live_threat_list.get_row_at_index.return_value = None
     view._live_threat_count = 0
+    view._progress_lock = threading.Lock()
+    view._pending_progress = None
+    view._pending_threats = deque()
+    view._progress_drain_source_id = None
+    view._progress_drain_scheduled = False
+    view._progress_drain_is_timer = False
+    view._progress_drain_token = 0
+    view._updates_paused = False
+    view._last_progress_update = 0.0
 
     view._view_results_section = mock.MagicMock()
     view._view_results_button = mock.MagicMock()
@@ -1847,8 +1858,7 @@ class TestProgressUpdates:
         progress.files_scanned = files_scanned
         progress.files_total = files_total
         progress.infected_count = infected_count
-        progress.infected_files = []
-        progress.infected_threats = {}
+        progress.new_threats = ()
         progress.current_file = current_file
         progress.percentage = percentage
         progress.estimate_exceeded = False
@@ -1948,36 +1958,152 @@ class TestProgressUpdates:
         assert mock_scan_view._cumulative_files_scanned == 42
         assert mock_scan_view._last_progress_update == 0.0
 
-    def test_update_live_progress_ignores_stale_session(self, mock_scan_view):
-        """Test stale session callbacks do not mutate UI."""
+    def test_progress_queue_ignores_stale_session(self, mock_scan_view):
+        """A previous scan's callback cannot enqueue scalar or GTK work."""
         self._setup_progress_mocks(mock_scan_view)
         mock_scan_view._updates_paused = False
         mock_scan_view._progress_session_id = 5
         mock_scan_view._apply_progress_updates = mock.MagicMock()
-
         progress = self._make_progress(files_scanned=2)
-        result = mock_scan_view._update_live_progress(
-            progress, scan_session_id=4, target_idx=1, completed_files_before_target=0
-        )
 
-        assert result is False
+        with mock.patch("src.ui.scan_view.GLib") as mock_glib:
+            mock_scan_view._create_progress_callback(4, 1)(progress)
+
+        mock_glib.idle_add.assert_not_called()
+        assert mock_scan_view._pending_progress is None
         mock_scan_view._apply_progress_updates.assert_not_called()
 
-    def test_update_live_progress_ignores_stale_target(self, mock_scan_view):
-        """Test stale target callbacks do not mutate UI."""
+    def test_progress_drain_ignores_previous_target_scalar(self, mock_scan_view):
+        """A delayed previous-target scalar update cannot alter current rows."""
         self._setup_progress_mocks(mock_scan_view)
         mock_scan_view._updates_paused = False
         mock_scan_view._progress_session_id = 6
         mock_scan_view._current_target_idx = 2
         mock_scan_view._apply_progress_updates = mock.MagicMock()
-
         progress = self._make_progress(files_scanned=2)
-        result = mock_scan_view._update_live_progress(
-            progress, scan_session_id=6, target_idx=1, completed_files_before_target=0
-        )
 
-        assert result is False
+        with (
+            mock.patch("src.ui.scan_view.GLib") as mock_glib,
+            mock.patch("src.ui.scan_view.time.monotonic", return_value=1.0),
+        ):
+            mock_glib.idle_add.return_value = 31
+            mock_scan_view._create_progress_callback(6, 1)(progress)
+            mock_scan_view._drain_pending_progress(6)
+
+        assert mock_scan_view._pending_progress is None
         mock_scan_view._apply_progress_updates.assert_not_called()
+
+    def test_future_target_scalar_waits_for_target_transition(self, mock_scan_view):
+        """A future target keeps its snapshot until its target UI is current."""
+        self._setup_progress_mocks(mock_scan_view)
+        mock_scan_view._progress_session_id = 12
+        mock_scan_view._current_target_idx = 1
+        mock_scan_view._total_target_count = 2
+        mock_scan_view._apply_progress_updates = mock.MagicMock()
+        mock_scan_view._start_progress_pulse = mock.MagicMock()
+        future = self._make_progress(files_scanned=3)
+
+        with (
+            mock.patch("src.ui.scan_view.GLib") as mock_glib,
+            mock.patch("src.ui.scan_view.time.monotonic", return_value=1.0),
+            mock.patch("src.ui.scan_view.format_scan_path", return_value="/target/two"),
+        ):
+            mock_glib.idle_add.return_value = 61
+            mock_scan_view._create_progress_callback(12, 2, 7)(future)
+            assert mock_scan_view._drain_pending_progress(12) is False
+            assert mock_scan_view._pending_progress[0] is future
+
+            mock_scan_view._update_scan_progress(
+                2, 2, "/target/two", scan_session_id=12, completed_files_before_target=7
+            )
+            mock_scan_view._drain_pending_progress(12)
+
+        mock_scan_view._apply_progress_updates.assert_called_once_with(future, 7)
+
+    def test_findings_promote_pending_scalar_timer_to_idle(self, mock_scan_view):
+        """New findings never wait for a throttled scalar-only timer."""
+        self._setup_progress_mocks(mock_scan_view)
+        mock_scan_view._progress_session_id = 13
+        callback = mock_scan_view._create_progress_callback(13, 1)
+        first = self._make_progress(files_scanned=1)
+        throttled = self._make_progress(files_scanned=2)
+        finding = self._make_progress(files_scanned=3, infected_count=1)
+        finding.new_threats = (("/tmp/found", "Timer.Promoted"),)
+        rendered = []
+        mock_scan_view._apply_progress_updates = mock.MagicMock()
+        mock_scan_view._append_threat_row = lambda path, name: rendered.append((path, name))
+
+        with mock.patch("src.ui.scan_view.GLib") as mock_glib:
+            mock_glib.idle_add.side_effect = [41, 42, 43]
+            mock_glib.timeout_add.return_value = 71
+            callback(first)
+            with mock.patch("src.ui.scan_view.time.monotonic", return_value=1.0):
+                mock_scan_view._drain_pending_progress(13)
+            callback(throttled)
+            with mock.patch("src.ui.scan_view.time.monotonic", return_value=1.01):
+                mock_scan_view._drain_pending_progress(13)
+            assert mock_scan_view._progress_drain_is_timer is True
+
+            callback(finding)
+            with mock.patch("src.ui.scan_view.time.monotonic", return_value=1.02):
+                mock_scan_view._drain_pending_progress(13)
+
+        mock_glib.source_remove.assert_called_once_with(71)
+        assert rendered == list(finding.new_threats)
+
+    def test_timer_backlog_hands_off_to_idle_batches(self, mock_scan_view):
+        """A timer callback with a burst schedules an idle continuation."""
+        self._setup_progress_mocks(mock_scan_view)
+        mock_scan_view._progress_session_id = 14
+        mock_scan_view._progress_drain_scheduled = True
+        mock_scan_view._progress_drain_is_timer = True
+        mock_scan_view._progress_drain_source_id = 81
+        mock_scan_view._progress_drain_token = 4
+        mock_scan_view._pending_threats.extend(
+            (f"/tmp/{index}", f"Threat.{index}") for index in range(30)
+        )
+        rendered = []
+        mock_scan_view._append_threat_row = lambda path, name: rendered.append((path, name))
+
+        with (
+            mock.patch("src.ui.scan_view.GLib") as mock_glib,
+            mock.patch("src.ui.scan_view.time.monotonic", return_value=1.0),
+        ):
+            mock_glib.idle_add.return_value = 82
+            assert mock_scan_view._drain_pending_progress(14, 4) is False
+            idle_token = mock_scan_view._progress_drain_token
+            assert mock_scan_view._drain_pending_progress(14, idle_token) is False
+
+        assert len(rendered) == 30
+        mock_glib.idle_add.assert_called_once()
+        mock_glib.timeout_add.assert_not_called()
+
+    def test_scalar_timer_applies_latest_snapshot_once_due(self, mock_scan_view):
+        """A throttled scalar timer applies the newest retained progress."""
+        self._setup_progress_mocks(mock_scan_view)
+        mock_scan_view._progress_session_id = 15
+        callback = mock_scan_view._create_progress_callback(15, 1)
+        first = self._make_progress(files_scanned=1)
+        latest = self._make_progress(files_scanned=2)
+        mock_scan_view._apply_progress_updates = mock.MagicMock()
+
+        with mock.patch("src.ui.scan_view.GLib") as mock_glib:
+            mock_glib.idle_add.side_effect = [91, 92]
+            mock_glib.timeout_add.return_value = 93
+            callback(first)
+            with mock.patch("src.ui.scan_view.time.monotonic", return_value=1.0):
+                mock_scan_view._drain_pending_progress(15)
+            callback(latest)
+            with mock.patch("src.ui.scan_view.time.monotonic", return_value=1.01):
+                mock_scan_view._drain_pending_progress(15)
+            timer_token = mock_scan_view._progress_drain_token
+            with mock.patch("src.ui.scan_view.time.monotonic", return_value=1.1):
+                mock_scan_view._drain_pending_progress(15, timer_token)
+
+        assert mock_scan_view._apply_progress_updates.call_args_list == [
+            mock.call(first, 0),
+            mock.call(latest, 0),
+        ]
 
     def test_apply_progress_updates_uses_target_baseline(self, mock_scan_view):
         """Test cumulative stat uses passed baseline for the current target."""
@@ -1995,52 +2121,167 @@ class TestProgressUpdates:
         assert "10" in title_text
         assert "10" in subtitle_text  # 7 completed + 3 current target
 
-    def test_progress_callback_throttle_is_target_scoped(self, mock_scan_view):
-        """Test callback throttling still preserves first and delayed updates."""
+    def test_progress_buffer_coalesces_scalars_and_preserves_threat_order(self, mock_scan_view):
+        """One pending source retains every delta while replacing scalar state."""
         self._setup_progress_mocks(mock_scan_view)
+        mock_scan_view._progress_session_id = 9
+        mock_scan_view._current_target_idx = 3
+        callback = mock_scan_view._create_progress_callback(9, 3, 11)
+        first = self._make_progress(files_scanned=1)
+        latest = self._make_progress(files_scanned=2)
+        finding = self._make_progress(files_scanned=3, infected_count=1)
+        finding.new_threats = (("/tmp/found", "Win.Test"),)
 
-        callback = mock_scan_view._create_progress_callback(
-            scan_session_id=9,
-            target_idx=3,
-            completed_files_before_target=11,
+        with mock.patch("src.ui.scan_view.GLib") as mock_glib:
+            mock_glib.idle_add.return_value = 41
+            callback(first)
+            callback(latest)
+            callback(finding)
+
+        mock_glib.idle_add.assert_called_once()
+        assert mock_glib.idle_add.call_args.args[:2] == (
+            mock_scan_view._drain_pending_progress,
+            9,
         )
-        progress = self._make_progress(files_scanned=1, infected_count=0)
+        assert mock_scan_view._pending_progress[0] is finding
+        assert list(mock_scan_view._pending_threats) == [("/tmp/found", "Win.Test")]
+
+    def test_progress_drain_uses_bounded_batches_without_reordering(self, mock_scan_view):
+        """A burst is rendered over bounded main-loop callbacks in input order."""
+        self._setup_progress_mocks(mock_scan_view)
+        mock_scan_view._progress_session_id = 3
+        mock_scan_view._current_target_idx = 1
+        callback = mock_scan_view._create_progress_callback(3, 1)
+        initial = self._make_progress(files_scanned=1)
+        first_burst = self._make_progress(files_scanned=2, infected_count=15)
+        first_burst.new_threats = tuple((f"/tmp/{index}", f"Threat.{index}") for index in range(15))
+        clean = self._make_progress(files_scanned=3, infected_count=15)
+        second_burst = self._make_progress(files_scanned=4, infected_count=30)
+        second_burst.new_threats = tuple(
+            (f"/tmp/{index}", f"Threat.{index}") for index in range(15, 30)
+        )
+        expected = first_burst.new_threats + second_burst.new_threats
+        rendered = []
+        mock_scan_view._apply_progress_updates = mock.MagicMock()
+        mock_scan_view._append_threat_row = lambda path, name: rendered.append((path, name))
 
         with (
-            mock.patch("src.ui.scan_view.time.monotonic", side_effect=[1.0, 1.05, 1.20]),
             mock.patch("src.ui.scan_view.GLib") as mock_glib,
+            mock.patch("src.ui.scan_view.time.monotonic", return_value=1.0),
         ):
-            callback(progress)  # allowed (first update)
-            callback(progress)  # throttled
-            callback(progress)  # allowed
+            mock_glib.idle_add.return_value = 42
+            callback(initial)
+            callback(first_burst)
+            callback(clean)
+            callback(second_burst)
+            assert mock_scan_view._drain_pending_progress(3) is True
+            assert mock_scan_view._drain_pending_progress(3) is False
 
-        assert mock_glib.idle_add.call_count == 2
-        first_call = mock_glib.idle_add.call_args_list[0][0]
-        assert first_call[0] == mock_scan_view._update_live_progress
-        assert first_call[2] == 9
-        assert first_call[3] == 3
-        assert first_call[4] == 11
+        assert rendered == list(expected)
+        assert mock_scan_view._live_threat_count == 30
 
-    def test_progress_callback_bypasses_throttle_on_new_threat(self, mock_scan_view):
-        """Test threat updates bypass throttle so threat list stays live."""
+    def test_hidden_scan_retains_deltas_until_shown(self, mock_scan_view):
+        """Hiding the view suppresses GTK work without discarding detections."""
         self._setup_progress_mocks(mock_scan_view)
+        mock_scan_view._progress_session_id = 4
+        mock_scan_view._updates_paused = True
+        callback = mock_scan_view._create_progress_callback(4, 1)
+        progress = self._make_progress()
+        progress.new_threats = (("/tmp/hidden", "Hidden.Test"),)
 
-        callback = mock_scan_view._create_progress_callback(
-            scan_session_id=2,
-            target_idx=1,
-            completed_files_before_target=0,
+        with mock.patch("src.ui.scan_view.GLib") as mock_glib:
+            callback(progress)
+            mock_glib.idle_add.assert_not_called()
+            mock_scan_view._on_view_shown()
+
+        mock_glib.idle_add.assert_called_once()
+        assert mock_glib.idle_add.call_args.args[:2] == (
+            mock_scan_view._drain_pending_progress,
+            4,
         )
-        normal = self._make_progress(files_scanned=1, infected_count=0)
-        threat = self._make_progress(files_scanned=2, infected_count=1)
+        assert list(mock_scan_view._pending_threats) == [("/tmp/hidden", "Hidden.Test")]
+
+    def test_progress_buffer_keeps_deltas_from_multiple_targets(self, mock_scan_view):
+        """Per-target count resets do not turn valid delta findings into duplicates."""
+        self._setup_progress_mocks(mock_scan_view)
+        mock_scan_view._progress_session_id = 5
+        mock_scan_view._current_target_idx = 2
+        first_target = self._make_progress(infected_count=1)
+        first_target.new_threats = (("/one", "Threat.One"),)
+        second_target = self._make_progress(infected_count=1)
+        second_target.new_threats = (("/two", "Threat.Two"),)
+        rendered = []
+        mock_scan_view._apply_progress_updates = mock.MagicMock()
+        mock_scan_view._append_threat_row = lambda path, name: rendered.append((path, name))
 
         with (
-            mock.patch("src.ui.scan_view.time.monotonic", side_effect=[1.0, 1.05]),
             mock.patch("src.ui.scan_view.GLib") as mock_glib,
+            mock.patch("src.ui.scan_view.time.monotonic", return_value=1.0),
         ):
-            callback(normal)  # first update
-            callback(threat)  # new threat, should bypass throttle
+            mock_glib.idle_add.return_value = 43
+            mock_scan_view._create_progress_callback(5, 1)(first_target)
+            mock_scan_view._create_progress_callback(5, 2)(second_target)
+            mock_scan_view._drain_pending_progress(5)
 
-        assert mock_glib.idle_add.call_count == 2
+        assert rendered == list(first_target.new_threats + second_target.new_threats)
+
+    def test_progress_buffer_rejects_stale_session_before_scheduling(self, mock_scan_view):
+        """A previous scan's worker callback cannot mutate a later session."""
+        self._setup_progress_mocks(mock_scan_view)
+        mock_scan_view._progress_session_id = 7
+        stale = self._make_progress()
+        stale.new_threats = (("/tmp/stale", "Stale.Test"),)
+
+        with mock.patch("src.ui.scan_view.GLib") as mock_glib:
+            mock_scan_view._create_progress_callback(6, 1)(stale)
+
+        mock_glib.idle_add.assert_not_called()
+        assert not mock_scan_view._pending_threats
+
+    def test_progress_drain_keeps_finding_produced_during_render(self, mock_scan_view):
+        """A producer append between batch pop and reschedule is not orphaned."""
+        self._setup_progress_mocks(mock_scan_view)
+        mock_scan_view._progress_session_id = 8
+        initial = self._make_progress()
+        initial.new_threats = (("/tmp/first", "Threat.First"),)
+        late = self._make_progress()
+        late.new_threats = (("/tmp/late", "Threat.Late"),)
+        callback = mock_scan_view._create_progress_callback(8, 1)
+        rendered = []
+
+        def append(path, name):
+            rendered.append((path, name))
+            if path == "/tmp/first":
+                callback(late)
+
+        mock_scan_view._apply_progress_updates = mock.MagicMock()
+        mock_scan_view._append_threat_row = append
+        with (
+            mock.patch("src.ui.scan_view.GLib") as mock_glib,
+            mock.patch("src.ui.scan_view.time.monotonic", return_value=1.0),
+        ):
+            mock_glib.idle_add.return_value = 44
+            callback(initial)
+            assert mock_scan_view._drain_pending_progress(8) is True
+            assert mock_scan_view._drain_pending_progress(8) is False
+
+        assert rendered == list(initial.new_threats + late.new_threats)
+
+    def test_clear_pending_progress_removes_source_and_data(self, mock_scan_view):
+        """Final completion/error cleanup leaves no live queue or GLib source."""
+        self._setup_progress_mocks(mock_scan_view)
+        mock_scan_view._pending_progress = (self._make_progress(), 1, 1, 0)
+        mock_scan_view._pending_threats.append(("/tmp/found", "Threat"))
+        mock_scan_view._progress_drain_source_id = 71
+        mock_scan_view._progress_drain_scheduled = True
+
+        with mock.patch("src.ui.scan_view.GLib") as mock_glib:
+            mock_scan_view._clear_pending_progress()
+
+        mock_glib.source_remove.assert_called_once_with(71)
+        assert mock_scan_view._pending_progress is None
+        assert not mock_scan_view._pending_threats
+        assert mock_scan_view._progress_drain_scheduled is False
 
 
 class TestStartScanning:
@@ -2158,6 +2399,9 @@ class TestStartScanning:
         self._setup_start_mocks(mock_scan_view)
         mock_scan_view._selected_paths = ["/test/path"]
         mock_scan_view._is_scanning = True  # a scan is already running
+        pending = (mock.MagicMock(), 1, 1, 0)
+        mock_scan_view._pending_progress = pending
+        mock_scan_view._pending_threats.append(("/tmp/found", "Threat"))
         callback = mock.MagicMock()
         mock_scan_view._on_scan_state_changed = callback
 
@@ -2168,6 +2412,8 @@ class TestStartScanning:
         mock_glib.idle_add.assert_not_called()
         mock_scan_view._start_progress_pulse.assert_not_called()
         callback.assert_not_called()
+        assert mock_scan_view._pending_progress is pending
+        assert list(mock_scan_view._pending_threats) == [("/tmp/found", "Threat")]
 
 
 class TestOnScanClicked:
