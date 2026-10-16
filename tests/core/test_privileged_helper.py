@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -391,6 +392,48 @@ def test_elevated_install_launches_fixed_bootstrap_with_verified_asset_data(monk
     assert command[5:] == [str(source), "16", "a" * 64, privileged_helper.__version__]
 
 
+def test_elevated_install_refuses_without_launching_when_host_command_missing(
+    monkeypatch, tmp_path, caplog
+):
+    source = tmp_path / "helper.deb"
+    source.write_bytes(b"untrusted source")
+    monkeypatch.setattr(
+        privileged_helper, "_has_canonical_host_command", lambda path: path != "/usr/bin/apt-get"
+    )
+    monkeypatch.setattr(
+        privileged_helper.subprocess,
+        "run",
+        lambda *_args, **_kwargs: pytest.fail("pkexec must not run"),
+    )
+
+    with caplog.at_level(logging.WARNING, logger=privileged_helper.__name__):
+        assert privileged_helper._run_install(source, 16, "a" * 64) == (False, False)
+
+    assert "/usr/bin/apt-get" in caplog.text
+
+
+def test_elevated_install_failure_logs_exit_code_and_stderr(monkeypatch, tmp_path, caplog):
+    source = tmp_path / "helper.deb"
+    source.write_bytes(b"untrusted source")
+    monkeypatch.setattr(privileged_helper, "_has_canonical_host_command", lambda _path: True)
+    monkeypatch.setattr(privileged_helper, "wrap_host_command", lambda command: command)
+    monkeypatch.setattr(
+        privileged_helper.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            returncode=100,
+            stdout="",
+            stderr="E: Could not get lock /var/lib/dpkg/lock-frontend",
+        ),
+    )
+
+    with caplog.at_level(logging.WARNING, logger=privileged_helper.__name__):
+        assert privileged_helper._run_install(source, 16, "a" * 64) == (False, False)
+
+    assert "exited 100" in caplog.text
+    assert "Could not get lock" in caplog.text
+
+
 def test_concurrent_install_returns_in_progress_without_launching(monkeypatch):
     status = _installable_status()
     monkeypatch.setattr(privileged_helper, "get_privileged_helper_status", lambda: status)
@@ -442,6 +485,57 @@ def test_dpkg_sig_v4_rejects_tampered_archive_member():
     members["data.tar.xz"] = b"tampered"
 
     assert privileged_helper._signed_deb_members_are_exact(signed_fields, members) is False
+
+
+def test_trusted_key_accepts_non_root_owner_as_seen_in_flatpak_sandbox(monkeypatch, tmp_path):
+    # Inside the sandbox the key is owned by 65534 or the user, never root (#242).
+    key = tmp_path / "signing-key.asc"
+    key.write_text("key")
+    key.chmod(0o644)
+    monkeypatch.setattr(privileged_helper, "_TRUSTED_SIGNING_KEY", key)
+
+    assert key.stat().st_uid != 0
+    assert privileged_helper._trusted_key_is_safe() is True
+
+
+@pytest.mark.parametrize("mode", [0o664, 0o646])
+def test_trusted_key_rejects_group_or_world_writable_file(monkeypatch, tmp_path, mode):
+    key = tmp_path / "signing-key.asc"
+    key.write_text("key")
+    key.chmod(mode)
+    monkeypatch.setattr(privileged_helper, "_TRUSTED_SIGNING_KEY", key)
+
+    assert privileged_helper._trusted_key_is_safe() is False
+
+
+def test_trusted_key_rejects_symlink_and_missing_file(monkeypatch, tmp_path):
+    target = tmp_path / "real-key.asc"
+    target.write_text("key")
+    target.chmod(0o644)
+    link = tmp_path / "signing-key.asc"
+    link.symlink_to(target)
+
+    monkeypatch.setattr(privileged_helper, "_TRUSTED_SIGNING_KEY", link)
+    assert privileged_helper._trusted_key_is_safe() is False
+
+    monkeypatch.setattr(privileged_helper, "_TRUSTED_SIGNING_KEY", tmp_path / "missing.asc")
+    assert privileged_helper._trusted_key_is_safe() is False
+
+
+@pytest.mark.parametrize(("returncode", "expected"), [(0, True), (1, False)])
+def test_host_command_check_tests_absolute_path_not_path_lookup(monkeypatch, returncode, expected):
+    # A pyenv/venv python3 earlier in PATH must not hide /usr/bin/python3.
+    calls = []
+
+    def run(command, **_kwargs):
+        calls.append(command)
+        return SimpleNamespace(returncode=returncode, stdout="", stderr="")
+
+    monkeypatch.setattr(privileged_helper, "wrap_host_command", lambda command: command)
+    monkeypatch.setattr(privileged_helper.subprocess, "run", run)
+
+    assert privileged_helper._has_canonical_host_command("/usr/bin/python3") is expected
+    assert calls == [["/usr/bin/test", "-f", "/usr/bin/python3", "-a", "-x", "/usr/bin/python3"]]
 
 
 def test_signature_verification_requires_exact_validsig_fingerprint(monkeypatch):
