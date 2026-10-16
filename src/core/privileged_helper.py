@@ -25,6 +25,7 @@ from .clamav_config import privileged_writer_available
 from .flatpak import is_flatpak, wrap_host_command
 from .i18n import _
 from .install_commands import DistroFamily, detect_distro_family
+from .sanitize import sanitize_log_text
 
 logger = logging.getLogger(__name__)
 
@@ -768,7 +769,7 @@ def _run_install(path: Path, expected_size: int, expected_digest: str) -> tuple[
         logger.warning(
             "Helper install: elevated installer exited %d: %s",
             result.returncode,
-            result.stderr.strip(),
+            sanitize_log_text(result.stderr).strip(),
         )
     return (result.returncode == 0, result.returncode in {126, 127})
 

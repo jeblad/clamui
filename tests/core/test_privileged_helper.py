@@ -423,7 +423,7 @@ def test_elevated_install_failure_logs_exit_code_and_stderr(monkeypatch, tmp_pat
         lambda *_args, **_kwargs: SimpleNamespace(
             returncode=100,
             stdout="",
-            stderr="E: Could not get lock /var/lib/dpkg/lock-frontend",
+            stderr="\x1b[31mE: Could not get lock /var/lib/dpkg/lock-frontend\x1b[0m",
         ),
     )
 
@@ -431,7 +431,8 @@ def test_elevated_install_failure_logs_exit_code_and_stderr(monkeypatch, tmp_pat
         assert privileged_helper._run_install(source, 16, "a" * 64) == (False, False)
 
     assert "exited 100" in caplog.text
-    assert "Could not get lock" in caplog.text
+    assert "E: Could not get lock" in caplog.text
+    assert "\x1b" not in caplog.text
 
 
 def test_concurrent_install_returns_in_progress_without_launching(monkeypatch):
