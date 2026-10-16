@@ -395,6 +395,7 @@ def test_elevated_install_launches_fixed_bootstrap_with_verified_asset_data(monk
 def test_elevated_install_refuses_without_launching_when_host_command_missing(
     monkeypatch, tmp_path, caplog
 ):
+    """A missing host command stops the install before pkexec and names the command."""
     source = tmp_path / "helper.deb"
     source.write_bytes(b"untrusted source")
     monkeypatch.setattr(
@@ -413,6 +414,7 @@ def test_elevated_install_refuses_without_launching_when_host_command_missing(
 
 
 def test_elevated_install_failure_logs_exit_code_and_stderr(monkeypatch, tmp_path, caplog):
+    """A failed elevated install logs its exit code and sanitized stderr."""
     source = tmp_path / "helper.deb"
     source.write_bytes(b"untrusted source")
     monkeypatch.setattr(privileged_helper, "_has_canonical_host_command", lambda _path: True)
@@ -489,7 +491,7 @@ def test_dpkg_sig_v4_rejects_tampered_archive_member():
 
 
 def test_trusted_key_accepts_non_root_owner_as_seen_in_flatpak_sandbox(monkeypatch, tmp_path):
-    # Inside the sandbox the key is owned by 65534 or the user, never root (#242).
+    """A key owned by 65534 or the user, as in the Flatpak sandbox, is accepted (#242)."""
     key = tmp_path / "signing-key.asc"
     key.write_text("key")
     key.chmod(0o644)
@@ -501,6 +503,7 @@ def test_trusted_key_accepts_non_root_owner_as_seen_in_flatpak_sandbox(monkeypat
 
 @pytest.mark.parametrize("mode", [0o664, 0o646])
 def test_trusted_key_rejects_group_or_world_writable_file(monkeypatch, tmp_path, mode):
+    """A group- or world-writable signing key is rejected."""
     key = tmp_path / "signing-key.asc"
     key.write_text("key")
     key.chmod(mode)
@@ -510,6 +513,7 @@ def test_trusted_key_rejects_group_or_world_writable_file(monkeypatch, tmp_path,
 
 
 def test_trusted_key_rejects_symlink_and_missing_file(monkeypatch, tmp_path):
+    """A symlinked or missing signing key is rejected."""
     target = tmp_path / "real-key.asc"
     target.write_text("key")
     target.chmod(0o644)
@@ -525,7 +529,7 @@ def test_trusted_key_rejects_symlink_and_missing_file(monkeypatch, tmp_path):
 
 @pytest.mark.parametrize(("returncode", "expected"), [(0, True), (1, False)])
 def test_host_command_check_tests_absolute_path_not_path_lookup(monkeypatch, returncode, expected):
-    # A pyenv/venv python3 earlier in PATH must not hide /usr/bin/python3.
+    """The host check tests the absolute path, so a pyenv/venv python3 in PATH can't block it."""
     calls = []
 
     def run(command, **_kwargs):
