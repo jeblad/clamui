@@ -18,6 +18,7 @@
 - Prevented delayed Save & Apply completion from replacing a newly selected configuration file with the previous save target.
 - Preserved literal backslashes before percent signs in cron scan targets and command arguments instead of letting cron interpret them as an input separator.
 - Registered the website's English UI dictionary and added a custom 404 page with documentation and homepage recovery links without duplicate routes.
+- Corrected wheel-install isolation checks to compare resolved path ancestry, avoiding false failures when the checkout is located at `/src`.
 
 ## [0.4.1] - 2026-10-12
 

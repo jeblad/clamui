@@ -133,11 +133,12 @@ class TestInstalledWheelInstallsPolicy:
         assert loaded_from, (
             "could not determine install_helper.__file__ from the installed interpreter"
         )
-        assert str(venv_dir) in loaded_from, (
+        loaded_from_path = Path(loaded_from).resolve()
+        assert loaded_from_path.is_relative_to(venv_dir.resolve()), (
             f"install_helper imported from outside the venv: {loaded_from}\n"
             f"checkout isolation failed"
         )
-        assert str(PROJECT_ROOT) not in Path(loaded_from).resolve().as_posix(), (
+        assert not loaded_from_path.is_relative_to(PROJECT_ROOT.resolve()), (
             f"install_helper leaked into the checkout: {loaded_from}"
         )
 
