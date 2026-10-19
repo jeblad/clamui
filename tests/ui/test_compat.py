@@ -59,6 +59,46 @@ class TestPresentAboutDialog:
         gtk_about_dialog.present.assert_called_once_with()
         _clear_src_modules()
 
+    def test_adw_about_dialog_receives_developers_and_translators(self, mock_gi_modules):
+        """Contributor and translator credits reach the Adw.AboutDialog."""
+        about_dialog = MagicMock()
+        mock_gi_modules["adw"].AboutDialog = MagicMock(return_value=about_dialog)
+
+        from src.ui.compat import present_about_dialog
+
+        present_about_dialog(
+            None,
+            app_name="ClamUI",
+            version="1.0.0",
+            developers=["Ada https://example.com"],
+            translator_credits="Bob <bob@example.com>",
+        )
+
+        about_dialog.set_developers.assert_called_once_with(["Ada https://example.com"])
+        about_dialog.set_translator_credits.assert_called_once_with("Bob <bob@example.com>")
+        _clear_src_modules()
+
+    def test_gtk_about_dialog_lists_developers_as_authors(self, mock_gi_modules):
+        """The Gtk fallback shows the contributor list instead of the single name."""
+        gtk_about_dialog = MagicMock()
+        mock_gi_modules["gtk"].AboutDialog = MagicMock(return_value=gtk_about_dialog)
+
+        from src.ui import compat
+
+        with patch.object(compat, "Adw", SimpleNamespace()):
+            compat.present_about_dialog(
+                None,
+                app_name="ClamUI",
+                version="1.0.0",
+                developer_name="Contributors",
+                developers=["Ada https://example.com"],
+                translator_credits="Bob",
+            )
+
+        gtk_about_dialog.set_authors.assert_called_once_with(["Ada https://example.com"])
+        gtk_about_dialog.set_translator_credits.assert_called_once_with("Bob")
+        _clear_src_modules()
+
 
 class TestFileChooserFallbacks:
     def test_open_paths_dialog_uses_file_chooser_native_when_filedialog_is_unavailable(
