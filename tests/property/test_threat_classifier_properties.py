@@ -1,142 +1,211 @@
-"""
-Property-based tests for src/core/threat_classifier.py.
-
-Exercises the classification and categorization logic against adversarial
-and realistic threat-name inputs. These are pure functions - no mocking
-needed.
-"""
+"""Property-based behavioral tests for src/core/threat_classifier.py."""
 
 from __future__ import annotations
 
-import string
-
 import pytest
-from hypothesis import given
+from hypothesis import example, given
 from hypothesis import strategies as st
 
 from src.core.threat_classifier import (
-    CRITICAL_PATTERNS,
-    HIGH_PATTERNS,
-    HIGH_PRIORITY_CATEGORY_PATTERNS,
-    LOW_PATTERNS,
-    LOW_PRIORITY_CATEGORY_PATTERNS,
-    MEDIUM_PATTERNS,
     ThreatSeverity,
     categorize_threat,
     classify_threat_severity,
-    classify_threat_severity_str,
 )
-from tests.property.strategies import threat_name, unknown_threat_name
+from tests.property.strategies import unknown_threat_name
 
 pytestmark = pytest.mark.property
 
 
-@given(st.one_of(st.none(), st.just("")))
-def test_severity_empty_or_none_is_medium(text: str | None) -> None:
-    assert classify_threat_severity(text or "") == ThreatSeverity.MEDIUM
+# These are independent, representative rules from the threat-name contract,
+# with an explicit severity order rather than an oracle imported from production.
+SEVERITY_CASES = (
+    ("ransom", 4, ThreatSeverity.CRITICAL),
+    ("rootkit", 4, ThreatSeverity.CRITICAL),
+    ("bootkit", 4, ThreatSeverity.CRITICAL),
+    ("cryptolocker", 4, ThreatSeverity.CRITICAL),
+    ("wannacry", 4, ThreatSeverity.CRITICAL),
+    ("trojan", 3, ThreatSeverity.HIGH),
+    ("worm", 3, ThreatSeverity.HIGH),
+    ("backdoor", 3, ThreatSeverity.HIGH),
+    ("exploit", 3, ThreatSeverity.HIGH),
+    ("downloader", 3, ThreatSeverity.HIGH),
+    ("dropper", 3, ThreatSeverity.HIGH),
+    ("keylogger", 3, ThreatSeverity.HIGH),
+    ("adware", 2, ThreatSeverity.MEDIUM),
+    ("pua", 2, ThreatSeverity.MEDIUM),
+    ("pup", 2, ThreatSeverity.MEDIUM),
+    ("spyware", 2, ThreatSeverity.MEDIUM),
+    ("miner", 2, ThreatSeverity.MEDIUM),
+    ("coinminer", 2, ThreatSeverity.MEDIUM),
+    ("eicar", 1, ThreatSeverity.LOW),
+    ("test-signature", 1, ThreatSeverity.LOW),
+    ("test.file", 1, ThreatSeverity.LOW),
+    ("heuristic", 1, ThreatSeverity.LOW),
+    ("generic", 1, ThreatSeverity.LOW),
+)
+
+# These patterns have observable category behavior.  "ransomware" is omitted
+# because it necessarily also matches "ransom" with the identical category,
+# and "virus" is indistinguishable from the documented fallback.
+HIGH_CATEGORY_CASES = (
+    ("ransom", "Ransomware"),
+    ("rootkit", "Rootkit"),
+    ("bootkit", "Rootkit"),
+    ("trojan", "Trojan"),
+    ("worm", "Worm"),
+    ("backdoor", "Backdoor"),
+    ("exploit", "Exploit"),
+    ("adware", "Adware"),
+    ("spyware", "Spyware"),
+    ("keylogger", "Spyware"),
+    ("eicar", "Test"),
+    ("test-signature", "Test"),
+    ("test.file", "Test"),
+    ("macro", "Macro"),
+    ("phish", "Phishing"),
+    ("heuristic", "Heuristic"),
+)
+LOW_CATEGORY_CASES = (("pua", "PUA"), ("pup", "PUA"))
+CATEGORY_CASES = HIGH_CATEGORY_CASES + LOW_CATEGORY_CASES
+DISTINCT_HIGH_CATEGORY_PAIRS = tuple(
+    (first, second)
+    for first in HIGH_CATEGORY_CASES
+    for second in HIGH_CATEGORY_CASES
+    if first[1] != second[1]
+)
+DISTINCT_LOW_CATEGORY_PAIRS = (
+    (("pua", "PUA"), ("virus", "Virus")),
+    (("pup", "PUA"), ("virus", "Virus")),
+    (("virus", "Virus"), ("pua", "PUA")),
+    (("virus", "Virus"), ("pup", "PUA")),
+)
 
 
-@given(st.one_of(st.none(), st.just("")))
-def test_category_empty_or_none_is_unknown(text: str | None) -> None:
-    assert categorize_threat(text or "") == "Unknown"
+@st.composite
+def _mixed_case_spelling(draw: st.DrawFn, pattern: str) -> str:
+    alphabetic_positions = tuple(
+        index for index, character in enumerate(pattern) if character.isalpha()
+    )
+    uppercase_positions = draw(
+        st.sets(
+            st.sampled_from(alphabetic_positions),
+            min_size=1,
+            max_size=len(alphabetic_positions) - 1,
+        )
+    )
+    return "".join(
+        character.upper() if index in uppercase_positions else character.lower()
+        for index, character in enumerate(pattern)
+    )
 
 
-@given(threat_name())
-def test_severity_is_case_insensitive(name: str) -> None:
-    assert classify_threat_severity(name.upper()) == classify_threat_severity(name)
-    assert classify_threat_severity(name.lower()) == classify_threat_severity(name)
+SEVERITY_CASES_WITH_MIXED_SPELLINGS = st.sampled_from(SEVERITY_CASES).flatmap(
+    lambda case: st.tuples(st.just(case), _mixed_case_spelling(case[0]))
+)
+CATEGORY_CASES_WITH_MIXED_SPELLINGS = st.sampled_from(CATEGORY_CASES).flatmap(
+    lambda case: st.tuples(st.just(case), _mixed_case_spelling(case[0]))
+)
 
 
-@given(threat_name())
-def test_category_is_case_insensitive(name: str) -> None:
-    assert categorize_threat(name.upper()) == categorize_threat(name)
-    assert categorize_threat(name.lower()) == categorize_threat(name)
-
-
-@given(threat_name())
-def test_severity_str_matches_enum_value(name: str) -> None:
-    """classify_threat_severity_str is a string projection of the enum."""
-    assert classify_threat_severity_str(name) == classify_threat_severity(name).value
-
-
-@given(threat_name())
-def test_severity_is_valid_enum_member(name: str) -> None:
-    assert classify_threat_severity(name) in set(ThreatSeverity)
-
-
-@given(unknown_threat_name())
-def test_unknown_name_defaults_to_medium(name: str) -> None:
+@given(st.sampled_from((None, "")))
+def test_missing_name_has_documented_defaults(name: str | None) -> None:
     assert classify_threat_severity(name) == ThreatSeverity.MEDIUM
+    assert categorize_threat(name) == "Unknown"
+
+
+@given(
+    st.sampled_from(SEVERITY_CASES),
+    st.text(alphabet="0123456789", max_size=12),
+    st.text(alphabet="0123456789", max_size=12),
+)
+def test_representative_patterns_have_expected_severity(
+    case: tuple[str, int, ThreatSeverity], prefix: str, suffix: str
+) -> None:
+    pattern, _, expected = case
+    # Digits plus delimiter cannot create a second textual classifier pattern.
+    assert classify_threat_severity(f"{prefix}#{pattern}#{suffix}") == expected
+
+
+@example((("ransom", 4, ThreatSeverity.CRITICAL), "ransom"))
+@example((("ransom", 4, ThreatSeverity.CRITICAL), "RANSOM"))
+@given(SEVERITY_CASES_WITH_MIXED_SPELLINGS)
+def test_severity_is_case_insensitive_against_independent_answers(
+    rendered: tuple[tuple[str, int, ThreatSeverity], str],
+) -> None:
+    case, name = rendered
+    _, _, expected = case
+    assert classify_threat_severity(name) == expected
+
+
+@given(
+    st.sampled_from(SEVERITY_CASES),
+    st.sampled_from(SEVERITY_CASES),
+    st.booleans(),
+)
+def test_higher_severity_wins_when_patterns_compete(
+    first: tuple[str, int, ThreatSeverity],
+    second: tuple[str, int, ThreatSeverity],
+    reverse_order: bool,
+) -> None:
+    first_pattern, first_rank, first_expected = first
+    second_pattern, second_rank, second_expected = second
+    name = (
+        f"{second_pattern}#{first_pattern}"
+        if reverse_order
+        else f"{first_pattern}#{second_pattern}"
+    )
+    expected = first_expected if first_rank >= second_rank else second_expected
+    assert classify_threat_severity(name) == expected
+
+
+@example((("ransom", "Ransomware"), "ransom"))
+@example((("ransom", "Ransomware"), "RANSOM"))
+@given(CATEGORY_CASES_WITH_MIXED_SPELLINGS)
+def test_representative_categories_are_case_insensitive(
+    rendered: tuple[tuple[str, str], str],
+) -> None:
+    case, name = rendered
+    _, expected = case
+    assert categorize_threat(name) == expected
+
+
+@given(st.sampled_from(DISTINCT_HIGH_CATEGORY_PAIRS), st.booleans())
+def test_earliest_high_priority_category_wins(
+    pair: tuple[tuple[str, str], tuple[str, str]], reverse_order: bool
+) -> None:
+    first, second = pair
+    if reverse_order:
+        first, second = second, first
+    first_pattern, expected = first
+    second_pattern, _ = second
+    assert categorize_threat(f"{first_pattern}#{second_pattern}") == expected
+
+
+@given(
+    st.sampled_from(LOW_CATEGORY_CASES),
+    st.sampled_from(HIGH_CATEGORY_CASES),
+    st.booleans(),
+)
+def test_high_priority_category_beats_low_priority_at_any_position(
+    low_case: tuple[str, str],
+    high_case: tuple[str, str],
+    high_first: bool,
+) -> None:
+    low_pattern, _ = low_case
+    high_pattern, expected = high_case
+    name = f"{high_pattern}#{low_pattern}" if high_first else f"{low_pattern}#{high_pattern}"
+    assert categorize_threat(name) == expected
+
+
+@given(st.sampled_from(DISTINCT_LOW_CATEGORY_PAIRS))
+def test_earliest_low_priority_category_wins(pair: tuple[tuple[str, str], tuple[str, str]]) -> None:
+    first, second = pair
+    first_pattern, expected = first
+    second_pattern, _ = second
+    assert categorize_threat(f"{first_pattern}#{second_pattern}") == expected
 
 
 @given(unknown_threat_name())
-def test_unknown_name_defaults_to_virus(name: str) -> None:
+def test_unrecognized_names_use_nonempty_fallbacks(name: str) -> None:
+    assert classify_threat_severity(name) == ThreatSeverity.MEDIUM
     assert categorize_threat(name) == "Virus"
-
-
-@given(
-    st.text(alphabet=string.ascii_letters + string.digits + ".-", max_size=10),
-    st.text(alphabet=string.ascii_letters + string.digits + ".-", max_size=10),
-    st.sampled_from(CRITICAL_PATTERNS),
-)
-def test_critical_pattern_dominates(prefix: str, suffix: str, pattern: str) -> None:
-    """Any name containing a critical pattern classifies CRITICAL."""
-    name = f"{prefix}{pattern}{suffix}"
-    assert classify_threat_severity(name) == ThreatSeverity.CRITICAL
-
-
-@given(
-    st.text(alphabet=string.ascii_letters, max_size=10),
-    st.text(alphabet=string.ascii_letters, max_size=10),
-    st.sampled_from(HIGH_PATTERNS),
-)
-def test_high_pattern_yields_high_when_no_critical(prefix: str, suffix: str, pattern: str) -> None:
-    """A high-severity pattern yields HIGH unless a critical pattern also appears."""
-    name = f"{prefix}{pattern}{suffix}"
-    lowered = name.lower()
-    if any(c in lowered for c in CRITICAL_PATTERNS):
-        return
-    assert classify_threat_severity(name) == ThreatSeverity.HIGH
-
-
-@given(
-    st.text(alphabet=string.ascii_letters, max_size=10),
-    st.text(alphabet=string.ascii_letters, max_size=10),
-    st.sampled_from(LOW_PATTERNS),
-)
-def test_low_pattern_yields_low_when_no_higher(prefix: str, suffix: str, pattern: str) -> None:
-    name = f"{prefix}{pattern}{suffix}"
-    lowered = name.lower()
-    if any(c in lowered for c in CRITICAL_PATTERNS + HIGH_PATTERNS + MEDIUM_PATTERNS):
-        return
-    assert classify_threat_severity(name) == ThreatSeverity.LOW
-
-
-@given(st.text(alphabet=string.ascii_letters + ".-", min_size=1, max_size=20))
-def test_category_is_nonempty_string(name_prefix: str) -> None:
-    """categorize_threat always returns a non-empty string."""
-    result = categorize_threat(name_prefix + "payload")
-    assert isinstance(result, str)
-    assert result != ""
-
-
-@given(threat_name())
-def test_severity_is_total(name: str) -> None:
-    """classify_threat_severity never raises for any threat_name()-generated input."""
-    assert classify_threat_severity(name) in set(ThreatSeverity)
-
-
-@given(st.text(max_size=100))
-def test_severity_is_total_any_text(name: str) -> None:
-    """classify_threat_severity accepts any string without raising."""
-    assert classify_threat_severity(name) in set(ThreatSeverity)
-
-
-@given(st.text(max_size=100))
-def test_categorize_is_total_any_text(name: str) -> None:
-    """categorize_threat accepts any string without raising."""
-    result = categorize_threat(name)
-    valid_categories = {cat for _, cat in HIGH_PRIORITY_CATEGORY_PATTERNS}
-    valid_categories |= {cat for _, cat in LOW_PRIORITY_CATEGORY_PATTERNS}
-    valid_categories |= {"Virus", "Unknown"}
-    assert result in valid_categories

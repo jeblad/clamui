@@ -605,8 +605,6 @@ class DaemonScanner:
                     files_scanned=files_scanned,
                     files_total=files_total,
                     infected_count=infected_count,
-                    infected_files=list(infected_files),
-                    infected_threats=dict(infected_threats),
                 )
                 progress_callback(progress)
 
@@ -633,14 +631,13 @@ class DaemonScanner:
                     if not is_new_file and not is_new_infection and previous_threat == threat_name:
                         return
 
-                    # Send updated progress with new infection
+                    # Send updated progress with the reportable infection.
                     progress = ScanProgress(
                         current_file=file_path,
                         files_scanned=files_scanned,
                         files_total=files_total,
                         infected_count=infected_count,
-                        infected_files=list(infected_files),
-                        infected_threats=dict(infected_threats),
+                        new_threats=((file_path, threat_name),),
                     )
                     progress_callback(progress)
 
@@ -664,8 +661,6 @@ class DaemonScanner:
                             files_scanned=files_scanned,
                             files_total=files_total,
                             infected_count=infected_count,
-                            infected_files=list(infected_files),
-                            infected_threats=dict(infected_threats),
                         )
                         progress_callback(progress)
                         break

@@ -540,25 +540,50 @@ class TestDaemonScannerProgressParsing:
         assert files_scanned == 1
         assert infected_count == 1
         assert infected_files == ["/home/user/malware.exe"]
-        assert len(progress_events) == 1
+        assert [event.new_threats for event in progress_events] == [
+            (("/home/user/malware.exe", "Win.Trojan.Agent"),)
+        ]
 
-    def test_scan_with_progress_emits_independent_snapshots(self, daemon_scanner_class):
-        """Each progress snapshot must keep len(infected_files) == infected_count.
+    def test_scan_with_progress_reports_changed_threat_name_as_new_delta(
+        self, daemon_scanner_class
+    ):
+        """A changed report for one path updates the UI without recounting it."""
+        scanner = daemon_scanner_class()
+        progress_events = []
+        lines = [
+            "/home/user/malware.exe: Win.Trojan.First FOUND",
+            "/home/user/malware.exe: Win.Trojan.Renamed FOUND",
+        ]
 
-        ScanProgress objects are handed to progress_callback, which schedules a
-        GTK update via GLib.idle_add on the main thread. If the daemon scanner
-        passed the live infected_files list / infected_threats dict by reference,
-        the background thread would keep mutating them after the snapshot was
-        emitted, so an early snapshot's int infected_count would desync from the
-        ever-growing shared list (and the main thread could observe a partially
-        mutated structure). Snapshots must be independent copies.
-        """
+        def fake_stream(process, is_cancelled, on_line):
+            for line in lines:
+                on_line(line)
+            return ("\n".join(lines), "", False)
+
+        with patch("src.core.daemon_scanner.stream_process_output", side_effect=fake_stream):
+            _, _, _, files_scanned, infected_count, infected_files = scanner._scan_with_progress(
+                process=MagicMock(),
+                progress_callback=progress_events.append,
+                files_total=10,
+            )
+
+        assert files_scanned == 1
+        assert infected_count == 1
+        assert infected_files == ["/home/user/malware.exe"]
+        assert [event.infected_count for event in progress_events] == [1, 1]
+        assert [event.new_threats for event in progress_events] == [
+            (("/home/user/malware.exe", "Win.Trojan.First"),),
+            (("/home/user/malware.exe", "Win.Trojan.Renamed"),),
+        ]
+
+    def test_scan_with_progress_delivers_deltas_between_clean_events(self, daemon_scanner_class):
+        """Retained events carry only their own immutable threat delta."""
         scanner = daemon_scanner_class()
         captured = []
         lines = [
             "/home/user/a.exe: Win.Trojan.A FOUND",
+            "/home/user/clean.txt: OK",
             "/home/user/b.exe: Win.Trojan.B FOUND",
-            "/home/user/c.exe: Win.Trojan.C FOUND",
         ]
 
         def fake_stream(process, is_cancelled, on_line):
@@ -573,14 +598,51 @@ class TestDaemonScannerProgressParsing:
                 files_total=3,
             )
 
-        assert len(captured) == 3
-        # First snapshot must reflect exactly one infection, not the final three.
-        assert captured[0].infected_files == ["/home/user/a.exe"]
-        assert len(captured[0].infected_threats) == 1
-        # Every snapshot stays internally consistent with its own count.
-        for progress in captured:
-            assert len(progress.infected_files) == progress.infected_count
-            assert len(progress.infected_threats) == progress.infected_count
+        assert [progress.infected_count for progress in captured] == [1, 1, 2]
+        assert [progress.new_threats for progress in captured] == [
+            (("/home/user/a.exe", "Win.Trojan.A"),),
+            (),
+            (("/home/user/b.exe", "Win.Trojan.B"),),
+        ]
+        assert isinstance(captured[0].new_threats, tuple)
+
+    def test_scan_sync_keeps_partial_results_on_cancellation(
+        self, tmp_path, daemon_scanner_class, scan_status_class
+    ):
+        """Cancellation preserves findings already reported by the parser."""
+        scan_file = tmp_path / "scan.txt"
+        scan_file.write_text("content")
+        scanner = daemon_scanner_class()
+        progress_events = []
+        lines = [
+            "/home/user/malware.exe: Win.Trojan.Agent FOUND",
+            "/home/user/clean.txt: OK",
+        ]
+        mock_process = MagicMock()
+        mock_process.returncode = -15
+
+        def fake_stream(process, is_cancelled, on_line):
+            for line in lines:
+                on_line(line)
+            return ("\n".join(lines), "", True)
+
+        with (
+            patch.object(scanner, "check_available", return_value=(True, "ok")),
+            patch("subprocess.Popen", return_value=mock_process),
+            patch("src.core.daemon_scanner.stream_process_output", side_effect=fake_stream),
+            patch("src.core.daemon_scanner.cleanup_process"),
+            patch.object(scanner, "_save_scan_log"),
+        ):
+            result = scanner.scan_sync(str(scan_file), progress_callback=progress_events.append)
+
+        assert result.status == scan_status_class.CANCELLED
+        assert result.scanned_files == 2
+        assert result.infected_count == 1
+        assert result.infected_files == ["/home/user/malware.exe"]
+        assert [event.new_threats for event in progress_events] == [
+            (("/home/user/malware.exe", "Win.Trojan.Agent"),),
+            (),
+        ]
 
 
 class TestDaemonScannerThreatClassification:

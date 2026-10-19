@@ -641,12 +641,11 @@ class Scanner:
         files_scanned = 0
         infected_count = 0
         infected_files: list[str] = []
-        infected_threats: dict[str, str] = {}
         current_file = ""
 
         def on_line(line: str) -> None:
             nonlocal files_scanned, infected_count, infected_files
-            nonlocal infected_threats, current_file
+            nonlocal current_file
 
             # Parse verbose ClamAV output
             # Format for scanning: "Scanning /path/to/file"
@@ -658,14 +657,11 @@ class Scanner:
                 current_file = line[9:]  # Remove "Scanning " prefix
                 files_scanned += 1
 
-                # Create and send progress update
                 progress = ScanProgress(
                     current_file=current_file,
                     files_scanned=files_scanned,
                     files_total=files_total,
                     infected_count=infected_count,
-                    infected_files=list(infected_files),
-                    infected_threats=dict(infected_threats),
                     estimate_exceeded=(files_total is not None and files_scanned > files_total),
                 )
                 progress_callback(progress)
@@ -682,16 +678,14 @@ class Scanner:
                         threat_name = threat_name[:-6].strip()
                     infected_count += 1
                     infected_files.append(file_path)
-                    infected_threats[file_path] = threat_name
 
-                    # Send updated progress with new infection
+                    # Send updated progress with the newly reported infection.
                     progress = ScanProgress(
                         current_file=file_path,
                         files_scanned=files_scanned,
                         files_total=files_total,
                         infected_count=infected_count,
-                        infected_files=list(infected_files),
-                        infected_threats=dict(infected_threats),
+                        new_threats=((file_path, threat_name),),
                         estimate_exceeded=(files_total is not None and files_scanned > files_total),
                     )
                     progress_callback(progress)

@@ -5,7 +5,9 @@ Scan interface component for ClamUI with folder picker, scan button, and results
 
 import logging
 import os
+import threading
 import time
+from collections import deque
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -19,7 +21,8 @@ from ..core.i18n import _, ngettext
 from ..core.quarantine import QuarantineManager
 from ..core.result_formatters import clean_scan_status_message, compose_scan_warning
 from ..core.sanitize import sanitize_surrogate_path
-from ..core.scanner import Scanner, ScanProgress, ScanResult, ScanStatus
+from ..core.scanner import Scanner, ScanResult, ScanStatus
+from ..core.scanner_types import ScanProgress
 from ..core.utils import (
     format_scan_path,
     is_flatpak,
@@ -144,6 +147,17 @@ class ScanView(Gtk.Box):
         self._threat_group: Adw.PreferencesGroup | None = None
         self._live_threat_list: Gtk.ListBox | None = None
         self._live_threat_count: int = 0
+
+        # Cross-thread progress buffering.  The scanner worker stores only the
+        # newest scalar progress snapshot, while preserving every threat delta
+        # until the GTK main loop renders it.
+        self._progress_lock = threading.Lock()
+        self._pending_progress: tuple[ScanProgress, int, int, int] | None = None
+        self._pending_threats: deque[tuple[str, str]] = deque()
+        self._progress_drain_source_id: int | None = None
+        self._progress_drain_scheduled = False
+        self._progress_drain_is_timer = False
+        self._progress_drain_token = 0
 
         # Throttling and visibility state
         self._last_progress_update: float = 0.0  # For throttling UI updates
@@ -1414,15 +1428,21 @@ class ScanView(Gtk.Box):
 
     def do_unmap(self):
         """
-        Handle widget unmapping (being hidden or removed from the widget tree).
+        Stop local GTK work while the view is hidden or removed.
 
-        Cleans up any active GLib timeout sources to prevent callbacks from
-        firing on a destroyed widget.
+        Progress data remains buffered for the current scan and resumes when
+        the widget maps again.
         """
+        self._on_view_hidden()
         if self._pulse_timeout_id is not None:
             GLib.source_remove(self._pulse_timeout_id)
             self._pulse_timeout_id = None
         Gtk.Box.do_unmap(self)
+
+    def do_map(self):
+        """Resume buffered scan progress when the widget becomes visible."""
+        Gtk.Box.do_map(self)
+        self._on_view_shown()
 
     def _on_parent_changed(self, widget, pspec):
         """
@@ -1440,57 +1460,210 @@ class ScanView(Gtk.Box):
             self._on_view_hidden()
 
     def _on_view_hidden(self):
-        """Pause UI updates when view is hidden."""
-        self._updates_paused = True
-        # Don't stop the pulse here - let it continue so the scan continues
-        # Just pause the frequent progress updates
+        """Pause UI updates while retaining scan-thread progress deltas."""
+        source_id = None
+        with self._progress_lock:
+            self._updates_paused = True
+            source_id = self._progress_drain_source_id
+            self._progress_drain_source_id = None
+            self._progress_drain_scheduled = False
+            self._progress_drain_is_timer = False
+            self._progress_drain_token += 1
+        if source_id is not None:
+            GLib.source_remove(source_id)
 
     def _on_view_shown(self):
-        """Resume UI updates when view becomes visible."""
-        self._updates_paused = False
-        # Force an immediate update on next progress callback
+        """Resume bounded progress draining after the view becomes visible."""
+        with self._progress_lock:
+            self._updates_paused = False
+            if self._is_scanning and (self._pending_progress is not None or self._pending_threats):
+                self._schedule_progress_drain_locked(self._progress_session_id)
 
-    def _update_live_progress(
+    def _schedule_progress_drain_locked(self, scan_session_id: int, delay_ms: int = 0) -> None:
+        """Schedule exactly one tokenized main-loop drain while holding the lock."""
+        if self._progress_drain_scheduled:
+            return
+
+        self._progress_drain_scheduled = True
+        self._progress_drain_is_timer = delay_ms > 0
+        self._progress_drain_token += 1
+        token = self._progress_drain_token
+        if self._progress_drain_is_timer:
+            self._progress_drain_source_id = GLib.timeout_add(
+                delay_ms, self._drain_pending_progress, scan_session_id, token
+            )
+        else:
+            self._progress_drain_source_id = GLib.idle_add(
+                self._drain_pending_progress, scan_session_id, token
+            )
+
+    def _clear_pending_progress(self) -> None:
+        """Discard buffered live data once a final result is authoritative."""
+        source_id = None
+        with self._progress_lock:
+            self._pending_progress = None
+            self._pending_threats.clear()
+            source_id = self._progress_drain_source_id
+            self._progress_drain_source_id = None
+            self._progress_drain_scheduled = False
+            self._progress_drain_is_timer = False
+            self._progress_drain_token += 1
+        if source_id is not None:
+            GLib.source_remove(source_id)
+
+    def _queue_live_progress(
         self,
         progress: ScanProgress,
-        scan_session_id: int | None = None,
-        target_idx: int | None = None,
-        completed_files_before_target: int | None = None,
-    ):
-        """
-        Update the UI with live scan progress.
+        scan_session_id: int,
+        target_idx: int,
+        completed_files_before_target: int,
+    ) -> None:
+        """Store one scalar snapshot and every finding from a worker callback."""
+        timer_source_id = None
+        with self._progress_lock:
+            if scan_session_id != self._progress_session_id or not self._is_scanning:
+                return
 
-        This is called from the scan thread via GLib.idle_add for thread safety.
-        Updates Adw.ActionRow widgets for current file, stats, and threat list.
+            pending = self._pending_progress
+            if pending is None or target_idx >= pending[2]:
+                self._pending_progress = (
+                    progress,
+                    scan_session_id,
+                    target_idx,
+                    completed_files_before_target,
+                )
+            self._pending_threats.extend(progress.new_threats)
 
-        Args:
-            progress: The ScanProgress with current scan state
-            scan_session_id: Optional scan session token for stale callback filtering
-            target_idx: Optional target index for stale callback filtering
-            completed_files_before_target: Optional completed-file baseline for this target
-        """
-        # Ignore stale callbacks from a previous scan session.
-        if scan_session_id is not None and scan_session_id != getattr(
-            self, "_progress_session_id", scan_session_id
-        ):
-            return False
+            if (
+                progress.new_threats
+                and target_idx <= self._current_target_idx
+                and self._progress_drain_scheduled
+                and self._progress_drain_is_timer
+            ):
+                # Promote only a known pending scalar timer.  The token keeps
+                # an already-running timer callback from disturbing the idle
+                # source that replaces it.
+                timer_source_id = self._progress_drain_source_id
+                self._progress_drain_source_id = None
+                self._progress_drain_scheduled = False
+                self._progress_drain_is_timer = False
+                self._progress_drain_token += 1
 
-        # Ignore delayed callbacks from previous targets in a multi-target scan.
-        if target_idx is not None and target_idx != getattr(
-            self, "_current_target_idx", target_idx
-        ):
-            return False
+            if not self._updates_paused and target_idx <= self._current_target_idx:
+                self._schedule_progress_drain_locked(scan_session_id)
 
-        if not getattr(self, "_is_scanning", False):
-            return False
+        if timer_source_id is not None:
+            GLib.source_remove(timer_source_id)
 
-        if self._updates_paused:
-            return False  # Don't update UI when view is hidden
+    def _drain_pending_progress(
+        self, scan_session_id: int, source_token: int | None = None
+    ) -> bool:
+        """Render bounded finding batches and rate-limit scalar GTK updates."""
+        scalar_update: tuple[ScanProgress, int] | None = None
+        with self._progress_lock:
+            if source_token is None:
+                source_token = self._progress_drain_token
+            if source_token != self._progress_drain_token:
+                return False
+            if scan_session_id != self._progress_session_id or not self._is_scanning:
+                self._pending_progress = None
+                self._pending_threats.clear()
+                self._progress_drain_source_id = None
+                self._progress_drain_scheduled = False
+                self._progress_drain_is_timer = False
+                self._progress_drain_token += 1
+                return False
 
-        try:
-            self._apply_progress_updates(progress, completed_files_before_target)
-        except Exception:
-            logger.debug("Error in live progress update", exc_info=True)
+            if self._updates_paused:
+                self._progress_drain_source_id = None
+                self._progress_drain_scheduled = False
+                self._progress_drain_is_timer = False
+                self._progress_drain_token += 1
+                return False
+
+            pending = self._pending_progress
+            now = time.monotonic()
+            if (
+                pending is not None
+                and pending[2] == self._current_target_idx
+                and now - self._last_progress_update >= 0.1
+            ):
+                self._pending_progress = None
+                scalar_update = (pending[0], pending[3])
+                self._last_progress_update = now
+            elif pending is not None and pending[2] < self._current_target_idx:
+                # A delayed scalar update from a completed target is obsolete.
+                self._pending_progress = None
+
+            threats = [
+                self._pending_threats.popleft() for _ in range(min(25, len(self._pending_threats)))
+            ]
+
+        if scalar_update is not None:
+            try:
+                self._apply_progress_updates(*scalar_update)
+            except Exception:
+                logger.debug("Error in live progress update", exc_info=True)
+
+        deadline = time.monotonic() + 0.005
+        for index, (file_path, threat_name) in enumerate(threats):
+            self._live_threat_count += 1
+            self._append_threat_row(file_path, threat_name)
+            if time.monotonic() >= deadline:
+                threats = threats[index + 1 :]
+                break
+        else:
+            threats = []
+
+        with self._progress_lock:
+            if threats:
+                # Restoring to the left preserves order ahead of new producer data.
+                self._pending_threats.extendleft(reversed(threats))
+
+            if source_token != self._progress_drain_token:
+                return False
+            if (
+                scan_session_id != self._progress_session_id
+                or not self._is_scanning
+                or self._updates_paused
+            ):
+                self._progress_drain_source_id = None
+                self._progress_drain_scheduled = False
+                self._progress_drain_is_timer = False
+                self._progress_drain_token += 1
+                return False
+
+            if self._pending_threats:
+                if self._progress_drain_is_timer:
+                    # A timer is executing: hand its backlog to a fresh idle
+                    # source instead of repeating the scalar throttle interval.
+                    self._progress_drain_source_id = None
+                    self._progress_drain_scheduled = False
+                    self._progress_drain_is_timer = False
+                    self._schedule_progress_drain_locked(scan_session_id)
+                    return False
+                return True
+
+            if self._pending_progress is not None:
+                if self._pending_progress[2] > self._current_target_idx:
+                    # The target transition schedules an immediate drain once
+                    # its UI state is current; waiting here would either spin
+                    # or delay the first scalar update for that target.
+                    self._progress_drain_source_id = None
+                    self._progress_drain_scheduled = False
+                    self._progress_drain_is_timer = False
+                    return False
+
+                remaining = max(0.0, 0.1 - (time.monotonic() - self._last_progress_update))
+                self._progress_drain_source_id = None
+                self._progress_drain_scheduled = False
+                self._progress_drain_is_timer = False
+                self._schedule_progress_drain_locked(scan_session_id, max(1, int(remaining * 1000)))
+                return False
+
+            self._progress_drain_source_id = None
+            self._progress_drain_scheduled = False
+            self._progress_drain_is_timer = False
         return False
 
     def _apply_progress_updates(
@@ -1498,10 +1671,10 @@ class ScanView(Gtk.Box):
         progress: ScanProgress,
         completed_files_before_target: int | None = None,
     ):
-        """Apply progress data to the Adwaita widgets.
+        """Apply scalar progress data to the Adwaita widgets.
 
-        Separated from _update_live_progress so that any exception is caught
-        and logged instead of being silently swallowed by GLib.idle_add.
+        Separated from the drain so exceptions can be logged rather than
+        swallowed by the GLib callback.
         """
         # Update progress bar
         if self._progress_bar is not None:
@@ -1601,14 +1774,6 @@ class ScanView(Gtk.Box):
                 )
                 self._stats_row.set_subtitle("")
 
-        # Append new threats to the live threat list
-        if progress.infected_count > self._live_threat_count:
-            threats = progress.infected_threats or {}
-            for file_path in progress.infected_files[self._live_threat_count :]:
-                threat_name = threats.get(file_path, _("Unknown threat"))
-                self._append_threat_row(file_path, threat_name)
-            self._live_threat_count = progress.infected_count
-
     def _append_threat_row(self, file_path: str, threat_name: str):
         """Append a new threat row to the live threat list.
 
@@ -1630,13 +1795,13 @@ class ScanView(Gtk.Box):
 
         self._live_threat_list.append(row)
 
-        # Update group title with count and show
+        # Update group title with the count after this row was accepted.
         self._threat_group.set_title(
             ngettext(
                 "Threats Detected ({n})",
                 "Threats Detected ({n})",
-                self._live_threat_count + 1,
-            ).format(n=self._live_threat_count + 1)
+                self._live_threat_count,
+            ).format(n=self._live_threat_count)
         )
         self._threat_group.set_visible(True)
 
@@ -1677,39 +1842,15 @@ class ScanView(Gtk.Box):
         target_idx: int | None = None,
         completed_files_before_target: int = 0,
     ):
-        """
-        Create a throttled progress callback for the scanner.
-
-        Returns:
-            A callback function that schedules UI updates via GLib.idle_add
-            with throttling to limit updates to ~10/second. Threat detection
-            events bypass the throttle since they are rare and important.
-        """
-        MIN_UPDATE_INTERVAL = 0.1  # 100ms between updates
-        last_infected_count = 0
-        last_update = 0.0
+        """Create a worker-thread callback backed by the shared progress buffer."""
+        session_id = self._progress_session_id if scan_session_id is None else scan_session_id
+        scoped_target_idx = self._current_target_idx if target_idx is None else target_idx
 
         def progress_callback(progress: ScanProgress):
-            nonlocal last_infected_count, last_update
-            now = time.monotonic()
-
-            # Bypass throttle for new threat detections - these are rare
-            # and must reach the UI immediately
-            is_new_threat = progress.infected_count > last_infected_count
-            if is_new_threat:
-                last_infected_count = progress.infected_count
-            elif last_update > 0 and now - last_update < MIN_UPDATE_INTERVAL:
-                return  # Throttle - skip this update
-
-            last_update = now
-            self._last_progress_update = now
-
-            # Schedule UI update on main thread
-            GLib.idle_add(
-                self._update_live_progress,
+            self._queue_live_progress(
                 progress,
-                scan_session_id,
-                target_idx,
+                session_id,
+                scoped_target_idx,
                 completed_files_before_target,
             )
 
@@ -1918,6 +2059,7 @@ class ScanView(Gtk.Box):
         self._is_scanning = True
         self._cancel_all_requested = False
         self._progress_session_id = getattr(self, "_progress_session_id", 0) + 1
+        self._clear_pending_progress()
         self._scan_button.set_sensitive(False)
         self._eicar_button.set_sensitive(False)
         self._selection_group.set_sensitive(False)
@@ -2235,8 +2377,16 @@ class ScanView(Gtk.Box):
         self._total_target_count = total_count
         if completed_files_before_target is not None:
             self._cumulative_files_scanned = completed_files_before_target
-        # Ensure first progress update for a new target is not throttled.
+        # Ensure the first scalar event for this target is not throttled.
         self._last_progress_update = 0.0
+        with self._progress_lock:
+            pending = self._pending_progress
+            if (
+                pending is not None
+                and pending[1] == self._progress_session_id
+                and pending[2] == current_idx
+            ):
+                self._schedule_progress_drain_locked(self._progress_session_id)
 
         # Format path for display
         display_path = format_scan_path(current_path)
@@ -2279,14 +2429,14 @@ class ScanView(Gtk.Box):
         self._scan_backend_override = None
         self._scan_daemon_force_stream = False
 
-        # Stop progress animation and hide progress section
+        # Final ScanResult is authoritative; reject worker callbacks and
+        # release all buffered live state before changing visible controls.
+        self._is_scanning = False
+        self._clear_pending_progress()
         self._stop_progress_pulse()
 
         # Store the result for dialog
         self._current_result = result
-
-        # Update scanning state
-        self._is_scanning = False
         self._scan_button.set_sensitive(True)
         self._eicar_button.set_sensitive(True)
         self._selection_group.set_sensitive(True)
@@ -2357,10 +2507,10 @@ class ScanView(Gtk.Box):
         self._scan_backend_override = None
         self._scan_daemon_force_stream = False
 
-        # Stop progress animation and hide progress section
-        self._stop_progress_pulse()
-
+        # Final error state is authoritative just like a completed result.
         self._is_scanning = False
+        self._clear_pending_progress()
+        self._stop_progress_pulse()
         self._scan_button.set_sensitive(True)
         self._eicar_button.set_sensitive(True)
         self._selection_group.set_sensitive(True)

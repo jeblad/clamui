@@ -1,92 +1,139 @@
 """Tests for the i18n (internationalization) module."""
 
+import gettext
+import importlib
 import os
+import struct
+from pathlib import Path
 from unittest import mock
+
+import pytest
+
+
+def _write_mo(path: Path, catalog: dict[str, str]) -> None:
+    """Write a minimal GNU gettext catalog for translation behavior tests."""
+    messages = sorted(
+        (message.encode(), translation.encode()) for message, translation in catalog.items()
+    )
+    originals = b""
+    translations = b""
+    original_offsets: list[tuple[int, int]] = []
+    translation_offsets: list[tuple[int, int]] = []
+
+    for message, translation in messages:
+        original_offsets.append((len(message), len(originals)))
+        translation_offsets.append((len(translation), len(translations)))
+        originals += message + b"\0"
+        translations += translation + b"\0"
+
+    count = len(messages)
+    original_table_offset = 7 * 4
+    translation_table_offset = original_table_offset + count * 8
+    strings_offset = translation_table_offset + count * 8
+    translation_offset = strings_offset + len(originals)
+
+    header = struct.pack(
+        "<7I",
+        0x950412DE,
+        0,
+        count,
+        original_table_offset,
+        translation_table_offset,
+        0,
+        translation_offset + len(translations),
+    )
+    original_table = b"".join(
+        struct.pack("<2I", length, strings_offset + offset) for length, offset in original_offsets
+    )
+    translation_table = b"".join(
+        struct.pack("<2I", length, translation_offset + offset)
+        for length, offset in translation_offsets
+    )
+
+    path.parent.mkdir(parents=True)
+    path.write_bytes(header + original_table + translation_table + originals + translations)
+
+
+@pytest.fixture
+def german_i18n(monkeypatch, tmp_path):
+    """Load i18n against an isolated catalog with a startup language override."""
+    appdir = tmp_path / "AppDir"
+    _write_mo(
+        appdir / "usr" / "share" / "locale" / "de" / "LC_MESSAGES" / "clamui.mo",
+        {
+            "": "Language: de\nPlural-Forms: nplurals=2; plural=(n != 1);\n",
+            "Scan Complete": "Scan abgeschlossen",
+            "{n} file\0{n} files": "{n} Datei\0{n} Dateien",
+            "menu\4File": "Datei",
+        },
+    )
+
+    from src.core import i18n
+
+    with monkeypatch.context() as environment:
+        environment.setenv("APPDIR", str(appdir))
+        environment.setenv("LANGUAGE", "de")
+        yield importlib.reload(i18n)
+
+    importlib.reload(i18n)
+
+
+@pytest.fixture
+def fallback_i18n(monkeypatch, tmp_path):
+    """Load i18n with no matching catalog under a startup language override."""
+    appdir = tmp_path / "AppDir"
+    (appdir / "usr" / "share" / "locale").mkdir(parents=True)
+
+    from src.core import i18n
+
+    with monkeypatch.context() as environment:
+        environment.setenv("APPDIR", str(appdir))
+        environment.setenv("LANGUAGE", "de")
+        yield importlib.reload(i18n)
+
+    importlib.reload(i18n)
 
 
 class TestGettext:
-    """Test gettext translation functions."""
+    """Test translation behavior through a real isolated gettext catalog."""
 
-    def test_passthrough_without_translations(self):
-        """_() returns the original string when no .mo file exists."""
-        from src.core.i18n import _
+    def test_startup_language_override_loads_translation(self, german_i18n):
+        """LANGUAGE selected before import determines the process catalog."""
+        assert german_i18n._("Scan Complete") == "Scan abgeschlossen"
 
-        assert _("Hello") == "Hello"
-        assert _("Scan Complete") == "Scan Complete"
+    def test_catalog_remains_fixed_after_startup(self, german_i18n, monkeypatch):
+        """Changing LANGUAGE after import does not switch the process catalog."""
+        with monkeypatch.context() as environment:
+            environment.setenv("LANGUAGE", "C")
+            assert german_i18n._("Scan Complete") == "Scan abgeschlossen"
 
-    def test_ngettext_singular(self):
-        """ngettext returns singular form for count=1."""
-        from src.core.i18n import ngettext
+    def test_catalog_preserves_plural_and_context_translation(self, german_i18n):
+        """Bound translation methods retain gettext plural and context behavior."""
+        assert german_i18n.ngettext("{n} file", "{n} files", 1) == "{n} Datei"
+        assert german_i18n.ngettext("{n} file", "{n} files", 2) == "{n} Dateien"
+        assert german_i18n.pgettext("menu", "File") == "Datei"
 
-        result = ngettext("{n} file", "{n} files", 1)
-        assert result == "{n} file"
+    def test_missing_catalog_falls_back_to_source(self, fallback_i18n):
+        """A missing catalog falls back without raising a lookup error."""
+        assert fallback_i18n._("Not in the catalog") == "Not in the catalog"
 
-    def test_ngettext_plural(self):
-        """ngettext returns plural form for count != 1."""
-        from src.core.i18n import ngettext
-
-        result = ngettext("{n} file", "{n} files", 0)
-        assert result == "{n} files"
-
-        result = ngettext("{n} file", "{n} files", 2)
-        assert result == "{n} files"
-
-        result = ngettext("{n} file", "{n} files", 100)
-        assert result == "{n} files"
-
-    def test_ngettext_with_format(self):
-        """ngettext works correctly with .format()."""
-        from src.core.i18n import ngettext
-
-        result = ngettext("{n} file scanned", "{n} files scanned", 1).format(n=1)
-        assert result == "1 file scanned"
-
-        result = ngettext("{n} file scanned", "{n} files scanned", 5).format(n=5)
-        assert result == "5 files scanned"
+    def test_loaded_catalog_does_not_resolve_files_per_lookup(self, german_i18n):
+        """Translated rows reuse the catalog selected at module import."""
+        with mock.patch.object(
+            gettext, "find", side_effect=AssertionError("unexpected catalog lookup")
+        ):
+            assert [german_i18n._("Scan Complete") for _ in range(3)] == [
+                "Scan abgeschlossen",
+                "Scan abgeschlossen",
+                "Scan abgeschlossen",
+            ]
 
     def test_n_underscore_identity(self):
-        """N_() returns the string unchanged (identity function)."""
+        """N_() returns the string unchanged for deferred translation."""
         from src.core.i18n import N_
 
-        assert N_("Scan") == "Scan"
-        assert N_("Update") == "Update"
-        assert N_("") == ""
-
-    def test_n_underscore_does_not_translate(self):
-        """N_() must not call gettext - it's an identity function for extraction only."""
-        from src.core.i18n import N_
-
-        # N_ should be a simple function that returns its argument
         text = "Test String"
-        assert N_(text) is text  # Same object, not just equal
-
-    def test_pgettext_available(self):
-        """pgettext is importable and callable."""
-        from src.core.i18n import pgettext
-
-        # Without translations, pgettext returns the message (not the context)
-        result = pgettext("menu", "File")
-        assert result == "File"
-
-    def test_format_string_pattern(self):
-        """The recommended _().format() pattern works correctly."""
-        from src.core.i18n import _
-
-        count = 42
-        result = _("Found {count} threats").format(count=count)
-        assert result == "Found 42 threats"
-
-    def test_underscore_is_callable(self):
-        """_ is a callable function."""
-        from src.core.i18n import _
-
-        assert callable(_)
-
-    def test_domain_is_clamui(self):
-        """The gettext domain is 'clamui'."""
-        from src.core.i18n import DOMAIN
-
-        assert DOMAIN == "clamui"
+        assert N_(text) is text
 
 
 class TestLocaleDirDetection:

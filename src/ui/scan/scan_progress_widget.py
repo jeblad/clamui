@@ -19,7 +19,7 @@ from gi.repository import Adw, GLib, Gtk
 
 from ...core.i18n import _, ngettext
 from ...core.sanitize import sanitize_surrogate_path
-from ...core.scanner import ScanProgress
+from ...core.scanner_types import ScanProgress
 from ..compat import safe_set_subtitle_lines
 from ..utils import resolve_icon_name
 
@@ -209,16 +209,11 @@ class ScanProgressWidget(Gtk.Box):
             )
             self._stats_row.set_subtitle("")
 
-        # Append new threats. Bump the counter per row so the group title
-        # counts correctly when several threats arrive in one update, then
-        # sync to the authoritative count (infected_files can lag it).
-        if progress.infected_count > self._live_threat_count:
-            threats = progress.infected_threats or {}
-            for file_path in progress.infected_files[self._live_threat_count :]:
-                threat_name = threats.get(file_path, _("Unknown threat"))
-                self._live_threat_count += 1
-                self._append_threat_row(file_path, threat_name)
-            self._live_threat_count = progress.infected_count
+        # Findings are deltas, not a cumulative cursor: each pair is rendered
+        # exactly once even when a backend restarts its per-target count.
+        for file_path, threat_name in progress.new_threats:
+            self._live_threat_count += 1
+            self._append_threat_row(file_path, threat_name)
 
     def set_status(self, text: str) -> None:
         """Set status label text."""

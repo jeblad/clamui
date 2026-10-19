@@ -43,6 +43,17 @@ def _validate_target_paths(targets: list[str]) -> str | None:
     return None
 
 
+def _quote_cron_token(token: str) -> str:
+    """Quote one shell token while keeping literal percent signs safe for cron."""
+    if "%" not in token:
+        return shlex.quote(token)
+
+    # Cronie removes the backslash from an escaped percent before passing the
+    # command to the shell. Quote each portion separately so that escape
+    # cannot be paired with a backslash at the end of the preceding portion.
+    return r"\%".join(shlex.quote(part) for part in token.split("%"))
+
+
 def _is_clamui_cron_command(line: str) -> bool:
     """Return whether *line* runs ClamUI's scheduled-scan command."""
     try:
@@ -868,22 +879,17 @@ WantedBy=timers.target
             # Generate cron time specification
             cron_time = self._generate_crontab_entry(frequency, time, day_of_week, day_of_month)
 
-            # Build command
             # Quote each argv token separately so multi-token commands (e.g.
             # 'flatpak run ...') stay an executable command rather than one
-            # quoted blob, while shlex.quote() still prevents injection via
-            # malicious paths.
-            cron_cmd = " ".join(shlex.quote(tok) for tok in cli_command)
+            # quoted blob. Percent signs need cron-aware quoting before tokens
+            # are combined, rather than a replacement on the full command.
+            cron_cmd = " ".join(_quote_cron_token(token) for token in cli_command)
             if skip_on_battery:
                 cron_cmd += " --skip-on-battery"
             if auto_quarantine:
                 cron_cmd += " --auto-quarantine"
             for target in targets:
-                cron_cmd += f" --target {shlex.quote(target)}"
-
-            # Escape literal '%' so cron does not treat it as a newline/stdin
-            # separator (e.g. legitimate directory names may contain '%').
-            cron_cmd = cron_cmd.replace("%", "\\%")
+                cron_cmd += f" --target {_quote_cron_token(target)}"
 
             # Create cron entry
             cron_entry = f"{cron_time} {cron_cmd}"

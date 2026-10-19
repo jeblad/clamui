@@ -232,6 +232,7 @@ The project chose Starlight inside the existing Astro site at `/docs/` for stock
 ```bash
 cd website
 bun install --frozen-lockfile
+bunx playwright install --with-deps chromium
 bun run dev
 bun run check
 bun run build

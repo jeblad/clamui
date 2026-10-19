@@ -6,11 +6,19 @@
 
 - Moved Save & Apply proposal validation and persistence into a GTK-free workflow, with click-time snapshots and explicit durable outcomes for partial failures.
 - Consolidated standalone and daemon scan-result interpretation while retaining backend-specific counting and error semantics.
+- Strengthened property-based tests for log redaction, Unicode preservation, filesystem and symlink validation, scheduled-command quoting, and threat-classification precedence.
+- Rendered website Mermaid diagrams into accessible light and dark SVGs at build time, removing the Mermaid JavaScript payload from documentation pages.
+- Replaced cumulative threat snapshots in standalone and daemon scan progress with ordered detection deltas, avoiding quadratic copying while preserving complete final results.
+- Batched live threat rows into bounded GTK main-loop turns, retained findings while the scan view is hidden, and throttled only scalar progress updates.
+- Cached the selected gettext catalog so building scan-result rows no longer repeats translation-file discovery; language changes still take effect after restarting.
 
 ### Fixed
 
 - Restored the complete source-module tree after GTK-mocked tests so later scanner tests patch the correct module objects.
 - Prevented delayed Save & Apply completion from replacing a newly selected configuration file with the previous save target.
+- Preserved literal backslashes before percent signs in cron scan targets and command arguments instead of letting cron interpret them as an input separator.
+- Registered the website's English UI dictionary and added a custom 404 page with documentation and homepage recovery links without duplicate routes.
+- Corrected wheel-install isolation checks to compare resolved path ancestry, avoiding false failures when the checkout is located at `/src`.
 
 ## [0.4.1] - 2026-10-12
 

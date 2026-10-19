@@ -62,34 +62,6 @@ class TestThreatDetail:
 class TestScanProgress:
     """Tests for ScanProgress dataclass."""
 
-    def test_scan_progress_creation(self):
-        """Test creating a ScanProgress instance with all fields."""
-        progress = ScanProgress(
-            current_file="/path/to/current/file.txt",
-            files_scanned=50,
-            files_total=100,
-            infected_count=2,
-            infected_files=["/path/infected1.exe", "/path/infected2.dll"],
-            bytes_scanned=1024000,
-        )
-        assert progress.current_file == "/path/to/current/file.txt"
-        assert progress.files_scanned == 50
-        assert progress.files_total == 100
-        assert progress.infected_count == 2
-        assert progress.infected_files == ["/path/infected1.exe", "/path/infected2.dll"]
-        assert progress.bytes_scanned == 1024000
-
-    def test_scan_progress_default_bytes_scanned(self):
-        """Test that bytes_scanned defaults to 0."""
-        progress = ScanProgress(
-            current_file="/path/to/file.txt",
-            files_scanned=10,
-            files_total=20,
-            infected_count=0,
-            infected_files=[],
-        )
-        assert progress.bytes_scanned == 0
-
     def test_scan_progress_with_none_total(self):
         """Test ScanProgress with unknown total (None)."""
         progress = ScanProgress(
@@ -97,7 +69,6 @@ class TestScanProgress:
             files_scanned=10,
             files_total=None,
             infected_count=0,
-            infected_files=[],
         )
         assert progress.files_total is None
 
@@ -108,7 +79,6 @@ class TestScanProgress:
             files_scanned=25,
             files_total=100,
             infected_count=0,
-            infected_files=[],
         )
         assert progress.percentage == 25.0
 
@@ -119,7 +89,6 @@ class TestScanProgress:
             files_scanned=0,
             files_total=100,
             infected_count=0,
-            infected_files=[],
         )
         assert progress.percentage == 0.0
 
@@ -130,7 +99,6 @@ class TestScanProgress:
             files_scanned=100,
             files_total=100,
             infected_count=0,
-            infected_files=[],
         )
         assert progress.percentage == 100.0
 
@@ -141,7 +109,6 @@ class TestScanProgress:
             files_scanned=50,
             files_total=None,
             infected_count=0,
-            infected_files=[],
         )
         assert progress.percentage is None
 
@@ -152,7 +119,6 @@ class TestScanProgress:
             files_scanned=0,
             files_total=0,
             infected_count=0,
-            infected_files=[],
         )
         assert progress.percentage is None
 
@@ -163,41 +129,8 @@ class TestScanProgress:
             files_scanned=1,
             files_total=3,
             infected_count=0,
-            infected_files=[],
         )
         assert progress.percentage == pytest.approx(33.333, rel=0.01)
-
-    def test_scan_progress_equality(self):
-        """Test ScanProgress equality comparison."""
-        progress1 = ScanProgress(
-            current_file="/file.txt",
-            files_scanned=10,
-            files_total=20,
-            infected_count=1,
-            infected_files=["/infected.exe"],
-            bytes_scanned=5000,
-        )
-        progress2 = ScanProgress(
-            current_file="/file.txt",
-            files_scanned=10,
-            files_total=20,
-            infected_count=1,
-            infected_files=["/infected.exe"],
-            bytes_scanned=5000,
-        )
-        assert progress1 == progress2
-
-    def test_scan_progress_with_empty_infected_list(self):
-        """Test ScanProgress with empty infected files list."""
-        progress = ScanProgress(
-            current_file="/file.txt",
-            files_scanned=100,
-            files_total=100,
-            infected_count=0,
-            infected_files=[],
-        )
-        assert progress.infected_files == []
-        assert progress.infected_count == 0
 
 
 class TestScanResult:
