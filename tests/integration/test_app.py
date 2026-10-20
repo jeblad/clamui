@@ -408,6 +408,10 @@ class TestClamUIAppLifecycle:
         assert call_kwargs["app_name"] == "ClamUI"
         assert call_kwargs["version"] == app.version
         assert call_kwargs["license_type"] == mock.ANY
+        # Contributors come from the packaged AUTHORS file; an untranslated
+        # "translator-credits" msgid must not be shown as a translator name.
+        assert call_kwargs["developers"]
+        assert call_kwargs["translator_credits"] is None
 
     def test_on_scan_file_uses_compat_file_picker(self, app):
         """Test that scan-file action delegates to the compatibility picker."""

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: ClamUI 0.4.1\n"
 "Report-Msgid-Bugs-To: https://github.com/linx-systems/clamui/issues\n"
-"POT-Creation-Date: 2026-10-16 23:41+0200\n"
+"POT-Creation-Date: 2026-10-20 01:42+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,28 +18,38 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
-#: src/app.py:431
+#: src/app.py:432
 msgid "Updating stored logs for privacy"
 msgstr ""
 
-#: src/app.py:434
+#: src/app.py:435
 #, python-brace-format
 msgid "Updating stored log for privacy ({processed}/{total})"
 msgid_plural "Updating stored logs for privacy ({processed}/{total})"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/app.py:801
+#: src/app.py:802
 msgid "Select File or Folder"
+msgstr ""
+
+#. Translators: replace with your name(s) and optionally <email> or a URL, one
+#. translator per line. Leave untranslated if you don't want to be credited.
+#: src/app.py:861
+msgid "translator-credits"
+msgstr ""
+
+#: src/app.py:868
+msgid "A graphical interface for ClamAV antivirus"
 msgstr ""
 
 #. Translators: the em dash separates two parts; use the dash and spacing usual in
 #. your language.
-#: src/app.py:994
+#: src/app.py:1002
 msgid "A scan is already running — the new scan request was ignored"
 msgstr ""
 
-#: src/app.py:1024
+#: src/app.py:1032
 #, python-brace-format
 msgid "VirusTotal scans one file at a time; {count} selection was ignored."
 msgid_plural ""
@@ -2021,98 +2031,98 @@ msgstr ""
 msgid "Unknown Device"
 msgstr ""
 
-#: src/core/privileged_helper.py:273
+#: src/core/privileged_helper.py:277
 msgid ""
 "The host helper was found, but its installed package version could not be "
 "verified."
 msgstr ""
 
-#: src/core/privileged_helper.py:280
+#: src/core/privileged_helper.py:284
 msgid ""
 "The privileged helper is only installed automatically for Flatpak ClamUI."
 msgstr ""
 
-#: src/core/privileged_helper.py:286
+#: src/core/privileged_helper.py:290
 msgid ""
 "Automatic privileged-helper installation is currently supported only on "
 "Debian-family hosts."
 msgstr ""
 
-#: src/core/privileged_helper.py:755
+#: src/core/privileged_helper.py:782
 msgid "The privileged helper is already installed."
 msgstr ""
 
-#: src/core/privileged_helper.py:760
+#: src/core/privileged_helper.py:787
 msgid "The privileged helper cannot be installed automatically here."
 msgstr ""
 
-#: src/core/privileged_helper.py:768
+#: src/core/privileged_helper.py:795
 msgid "Timed out while checking the ClamUI release."
 msgstr ""
 
-#: src/core/privileged_helper.py:773
+#: src/core/privileged_helper.py:800
 msgid ""
 "Could not contact GitHub to check the ClamUI release. Check your connection "
 "and try again."
 msgstr ""
 
-#: src/core/privileged_helper.py:777
+#: src/core/privileged_helper.py:804
 msgid "The matching ClamUI helper release could not be verified."
 msgstr ""
 
-#: src/core/privileged_helper.py:787
+#: src/core/privileged_helper.py:814
 msgid "Timed out while downloading the privileged helper. Try again."
 msgstr ""
 
-#: src/core/privileged_helper.py:792
+#: src/core/privileged_helper.py:819
 msgid ""
 "Could not download the privileged helper. Check your connection and try "
 "again."
 msgstr ""
 
-#: src/core/privileged_helper.py:795
+#: src/core/privileged_helper.py:822
 msgid "The downloaded privileged helper could not be verified."
 msgstr ""
 
-#: src/core/privileged_helper.py:801
+#: src/core/privileged_helper.py:828
 msgid "The downloaded privileged helper has an unexpected package identity."
 msgstr ""
 
-#: src/core/privileged_helper.py:806
+#: src/core/privileged_helper.py:833
 msgid ""
 "The downloaded privileged helper does not have a valid ClamUI signature."
 msgstr ""
 
-#: src/core/privileged_helper.py:812
+#: src/core/privileged_helper.py:839
 msgid "Authorization was cancelled. The privileged helper was not installed."
 msgstr ""
 
-#: src/core/privileged_helper.py:818
+#: src/core/privileged_helper.py:845
 msgid ""
 "The privileged-helper installation failed. Try again or install it manually."
 msgstr ""
 
-#: src/core/privileged_helper.py:826
+#: src/core/privileged_helper.py:853
 msgid ""
 "The privileged helper was installed but is still unavailable. Restart ClamUI "
 "and try again."
 msgstr ""
 
-#: src/core/privileged_helper.py:830
+#: src/core/privileged_helper.py:857
 msgid "The privileged helper was installed successfully."
 msgstr ""
 
-#: src/core/privileged_helper.py:835
+#: src/core/privileged_helper.py:862
 msgid ""
 "Timed out while verifying or installing the privileged helper. Try again."
 msgstr ""
 
-#: src/core/privileged_helper.py:840
+#: src/core/privileged_helper.py:867
 msgid ""
 "Could not run the host package-management tools. Install the helper manually."
 msgstr ""
 
-#: src/core/privileged_helper.py:851
+#: src/core/privileged_helper.py:878
 msgid "Privileged-helper installation is already in progress."
 msgstr ""
 
@@ -2659,7 +2669,7 @@ msgstr ""
 
 #: src/core/updater.py:1395 src/ui/preferences/save_page.py:467
 #: src/ui/preferences/window.py:843 src/ui/scan_results_dialog.py:237
-#: src/ui/scan_view.py:660 src/ui/scan_view.py:2317
+#: src/ui/scan_view.py:674 src/ui/scan_view.py:2467
 #: src/ui/virustotal_results_dialog.py:199
 msgid "Unknown error"
 msgstr ""
@@ -2667,7 +2677,7 @@ msgstr ""
 #: src/core/virustotal.py:262 src/core/virustotal.py:316
 #: src/core/virustotal.py:478 src/core/virustotal.py:621
 #: src/core/virustotal.py:629 src/ui/scan/scan_view.py:261
-#: src/ui/scan_view.py:2313
+#: src/ui/scan_view.py:2463
 msgid "Scan cancelled"
 msgstr ""
 
@@ -2822,8 +2832,8 @@ msgstr ""
 #: src/ui/preferences/virustotal_page.py:359 src/ui/profile_dialogs.py:123
 #: src/ui/profile_dialogs.py:724 src/ui/profile_dialogs.py:874
 #: src/ui/profile_dialogs.py:996 src/ui/quarantine_view.py:101
-#: src/ui/scan/scan_view.py:177 src/ui/scan_view.py:1284
-#: src/ui/scan_view.py:1940 src/ui/update_view.py:149
+#: src/ui/scan/scan_view.py:177 src/ui/scan_view.py:1298
+#: src/ui/scan_view.py:2082 src/ui/update_view.py:149
 msgid "Cancel"
 msgstr ""
 
@@ -2831,17 +2841,17 @@ msgstr ""
 msgid "Confirm"
 msgstr ""
 
-#: src/ui/compat.py:462
+#: src/ui/compat.py:483
 msgid "_Open"
 msgstr ""
 
-#: src/ui/compat.py:463 src/ui/compat.py:529 src/ui/file_export.py:192
+#: src/ui/compat.py:484 src/ui/compat.py:550 src/ui/file_export.py:192
 #: src/ui/preferences/database_page.py:382
 #: src/ui/preferences/scanner_page.py:275
 msgid "_Cancel"
 msgstr ""
 
-#: src/ui/compat.py:528 src/ui/file_export.py:191
+#: src/ui/compat.py:549 src/ui/file_export.py:191
 msgid "_Save"
 msgstr ""
 
@@ -3412,7 +3422,7 @@ msgstr ""
 msgid "  Duration: {duration}"
 msgstr ""
 
-#: src/ui/logs_view.py:845 src/ui/scan_view.py:680 src/ui/update_view.py:649
+#: src/ui/logs_view.py:845 src/ui/scan_view.py:694 src/ui/update_view.py:649
 msgid "Summary:"
 msgstr ""
 
@@ -5200,7 +5210,7 @@ msgstr ""
 
 #: src/ui/profile_dialogs.py:192 src/ui/profile_dialogs.py:591
 #: src/ui/scan/target_selector.py:78 src/ui/scan/target_selector.py:233
-#: src/ui/scan_view.py:949 src/ui/scan_view.py:1242
+#: src/ui/scan_view.py:963 src/ui/scan_view.py:1256
 msgid "Scan Targets"
 msgstr ""
 
@@ -5216,7 +5226,7 @@ msgstr ""
 msgid "Add file"
 msgstr ""
 
-#: src/ui/profile_dialogs.py:222 src/ui/scan_view.py:997
+#: src/ui/profile_dialogs.py:222 src/ui/scan_view.py:1011
 msgid "No targets added"
 msgstr ""
 
@@ -5281,12 +5291,12 @@ msgstr ""
 msgid "Pattern"
 msgstr ""
 
-#: src/ui/profile_dialogs.py:531 src/ui/scan_view.py:1033
+#: src/ui/profile_dialogs.py:531 src/ui/scan_view.py:1047
 msgid "Remove"
 msgstr ""
 
 #: src/ui/profile_dialogs.py:589 src/ui/scan/target_selector.py:239
-#: src/ui/scan_view.py:1248
+#: src/ui/scan_view.py:1262
 #, python-brace-format
 msgid "Scan Targets ({count})"
 msgstr ""
@@ -5421,7 +5431,7 @@ msgstr ""
 msgid "Profile imported"
 msgstr ""
 
-#: src/ui/quarantine_view.py:241 src/ui/scan_view.py:2438
+#: src/ui/quarantine_view.py:241 src/ui/scan_view.py:2588
 #: src/ui/update_view.py:177
 msgid "Dismiss"
 msgstr ""
@@ -5582,50 +5592,50 @@ msgstr ""
 msgid "Failed to delete file"
 msgstr ""
 
-#: src/ui/scan/profile_selector.py:50 src/ui/scan_view.py:747
+#: src/ui/scan/profile_selector.py:50 src/ui/scan_view.py:761
 msgid "Scan Profile"
 msgstr ""
 
-#: src/ui/scan/profile_selector.py:61 src/ui/scan_view.py:752
+#: src/ui/scan/profile_selector.py:61 src/ui/scan_view.py:766
 msgid "Profile"
 msgstr ""
 
 #: src/ui/scan/profile_selector.py:65 src/ui/scan/profile_selector.py:103
-#: src/ui/scan_view.py:758 src/ui/scan_view.py:843
+#: src/ui/scan_view.py:772 src/ui/scan_view.py:857
 msgid "No Profile (Manual)"
 msgstr ""
 
-#: src/ui/scan/profile_selector.py:75 src/ui/scan_view.py:770
+#: src/ui/scan/profile_selector.py:75 src/ui/scan_view.py:784
 msgid "Manage profiles"
 msgstr ""
 
-#: src/ui/scan/scan_progress_widget.py:49 src/ui/scan_view.py:1310
+#: src/ui/scan/scan_progress_widget.py:49 src/ui/scan_view.py:1324
 msgid "Scan Progress"
 msgstr ""
 
 #: src/ui/scan/scan_progress_widget.py:63 src/ui/scan/scan_view.py:296
-#: src/ui/scan_view.py:1324
+#: src/ui/scan_view.py:1338
 msgid "Scanning..."
 msgstr ""
 
-#: src/ui/scan/scan_progress_widget.py:73 src/ui/scan_view.py:1334
+#: src/ui/scan/scan_progress_widget.py:73 src/ui/scan_view.py:1348
 msgid "Currently scanning"
 msgstr ""
 
 #: src/ui/scan/scan_progress_widget.py:74
-#: src/ui/scan/scan_progress_widget.py:119 src/ui/scan_view.py:1335
-#: src/ui/scan_view.py:1984
+#: src/ui/scan/scan_progress_widget.py:119 src/ui/scan_view.py:1349
+#: src/ui/scan_view.py:2126
 msgid "Waiting for scan data..."
 msgstr ""
 
 #: src/ui/scan/scan_progress_widget.py:84
-#: src/ui/scan/scan_progress_widget.py:122 src/ui/scan_view.py:1346
-#: src/ui/scan_view.py:1989
+#: src/ui/scan/scan_progress_widget.py:122 src/ui/scan_view.py:1360
+#: src/ui/scan_view.py:2131
 msgid "Scanned 0 files"
 msgstr ""
 
 #: src/ui/scan/scan_progress_widget.py:94 src/ui/scan_results_dialog.py:213
-#: src/ui/scan_view.py:1356 src/ui/statistics_view.py:294
+#: src/ui/scan_view.py:1370 src/ui/statistics_view.py:294
 msgid "Threats Detected"
 msgstr ""
 
@@ -5642,30 +5652,26 @@ msgid "Scanning... {pct}%"
 msgstr ""
 
 #: src/ui/scan/scan_progress_widget.py:178
-#: src/ui/scan/scan_progress_widget.py:198 src/ui/scan_view.py:1570
-#: src/ui/scan_view.py:1590
+#: src/ui/scan/scan_progress_widget.py:198 src/ui/scan_view.py:1743
+#: src/ui/scan_view.py:1763
 #, python-brace-format
 msgid "Scanned {scanned} / {total} files"
 msgstr ""
 
 #: src/ui/scan/scan_progress_widget.py:185
-#: src/ui/scan/scan_progress_widget.py:206 src/ui/scan_view.py:1553
-#: src/ui/scan_view.py:1577 src/ui/scan_view.py:1598
+#: src/ui/scan/scan_progress_widget.py:206 src/ui/scan_view.py:1726
+#: src/ui/scan_view.py:1750 src/ui/scan_view.py:1771
 #, python-brace-format
 msgid "Scanned {scanned} files"
 msgstr ""
 
-#: src/ui/scan/scan_progress_widget.py:190 src/ui/scan_view.py:1559
-#: src/ui/scan_view.py:1582
+#: src/ui/scan/scan_progress_widget.py:190 src/ui/scan_view.py:1732
+#: src/ui/scan_view.py:1755
 #, python-brace-format
 msgid "Target {current} of {total} ({cumulative} total)"
 msgstr ""
 
-#: src/ui/scan/scan_progress_widget.py:218 src/ui/scan_view.py:1608
-msgid "Unknown threat"
-msgstr ""
-
-#: src/ui/scan/scan_progress_widget.py:242 src/ui/scan_view.py:1636
+#: src/ui/scan/scan_progress_widget.py:237 src/ui/scan_view.py:1801
 #, python-brace-format
 msgid "Threats Detected ({n})"
 msgid_plural "Threats Detected ({n})"
@@ -5677,24 +5683,24 @@ msgstr[1] ""
 msgid "View Results ({n})"
 msgstr ""
 
-#: src/ui/scan/scan_results_widget.py:48 src/ui/scan_view.py:1727
-#: src/ui/scan_view.py:1752
+#: src/ui/scan/scan_results_widget.py:48 src/ui/scan_view.py:1868
+#: src/ui/scan_view.py:1893
 msgid "View Results"
 msgstr ""
 
-#: src/ui/scan/scan_view.py:163 src/ui/scan_view.py:1267
+#: src/ui/scan/scan_view.py:163 src/ui/scan_view.py:1281
 msgid "Start Scan"
 msgstr ""
 
-#: src/ui/scan/scan_view.py:169 src/ui/scan_view.py:1276
+#: src/ui/scan/scan_view.py:169 src/ui/scan_view.py:1290
 msgid "EICAR Test"
 msgstr ""
 
-#: src/ui/scan/scan_view.py:171 src/ui/scan_view.py:2405
+#: src/ui/scan/scan_view.py:171 src/ui/scan_view.py:2555
 msgid "Run a scan with EICAR test file to verify antivirus detection"
 msgstr ""
 
-#: src/ui/scan/scan_view.py:194 src/ui/scan_view.py:2431
+#: src/ui/scan/scan_view.py:194 src/ui/scan_view.py:2581
 #, python-brace-format
 msgid "Backend: {name}"
 msgstr ""
@@ -5705,7 +5711,7 @@ msgstr ""
 
 #. Translators: the em dash separates two parts; use the dash and spacing usual in
 #. your language.
-#: src/ui/scan/scan_view.py:255 src/ui/scan_view.py:2305
+#: src/ui/scan/scan_view.py:255 src/ui/scan_view.py:2455
 #, python-brace-format
 msgid "Scan complete — {count} threat(s) detected"
 msgstr ""
@@ -5715,22 +5721,22 @@ msgstr ""
 msgid "Scan error: {error}"
 msgstr ""
 
-#: src/ui/scan/scan_view.py:277 src/ui/scan_view.py:1791
+#: src/ui/scan/scan_view.py:277 src/ui/scan_view.py:1932
 msgid "Please select a file or folder to scan"
 msgstr ""
 
-#: src/ui/scan/scan_view.py:310 src/ui/scan_view.py:2251
+#: src/ui/scan/scan_view.py:310 src/ui/scan_view.py:2401
 #, python-brace-format
 msgid "Target {current} of {total}: {path}"
 msgstr ""
 
-#: src/ui/scan/scan_view.py:315 src/ui/scan_view.py:1968
-#: src/ui/scan_view.py:2248
+#: src/ui/scan/scan_view.py:315 src/ui/scan_view.py:2110
+#: src/ui/scan_view.py:2398
 #, python-brace-format
 msgid "Scanning {path}"
 msgstr ""
 
-#: src/ui/scan/scan_view.py:338 src/ui/scan_view.py:1903
+#: src/ui/scan/scan_view.py:338 src/ui/scan_view.py:2044
 #, python-brace-format
 msgid "Failed to create EICAR test file: {error}"
 msgstr ""
@@ -5740,15 +5746,15 @@ msgid "Remove target"
 msgstr ""
 
 #: src/ui/scan/target_selector.py:79 src/ui/scan/target_selector.py:234
-#: src/ui/scan_view.py:950 src/ui/scan_view.py:1243
+#: src/ui/scan_view.py:964 src/ui/scan_view.py:1257
 msgid "Drop files here or click Add"
 msgstr ""
 
-#: src/ui/scan/target_selector.py:94 src/ui/scan_view.py:959
+#: src/ui/scan/target_selector.py:94 src/ui/scan_view.py:973
 msgid "Add files"
 msgstr ""
 
-#: src/ui/scan/target_selector.py:101 src/ui/scan_view.py:967
+#: src/ui/scan/target_selector.py:101 src/ui/scan_view.py:981
 msgid "Add folders"
 msgstr ""
 
@@ -5756,7 +5762,7 @@ msgstr ""
 msgid "No targets selected"
 msgstr ""
 
-#: src/ui/scan/target_selector.py:236 src/ui/scan_view.py:1245
+#: src/ui/scan/target_selector.py:236 src/ui/scan_view.py:1259
 msgid "Scan Target (1)"
 msgstr ""
 
@@ -5977,159 +5983,159 @@ msgstr ""
 
 #. Translators: the em dash separates two parts; use the dash and spacing usual in
 #. your language.
-#: src/ui/scan_view.py:441
+#: src/ui/scan_view.py:455
 msgid "Scan in progress — please wait until the current scan completes"
 msgstr ""
 
-#: src/ui/scan_view.py:448
+#: src/ui/scan_view.py:462
 msgid "No files were dropped"
 msgstr ""
 
-#: src/ui/scan_view.py:468
+#: src/ui/scan_view.py:482
 msgid "Unable to accept dropped files"
 msgstr ""
 
-#: src/ui/scan_view.py:529 src/ui/scan_view.py:722
+#: src/ui/scan_view.py:543 src/ui/scan_view.py:736
 msgid "Scan details"
 msgstr ""
 
-#: src/ui/scan_view.py:530
+#: src/ui/scan_view.py:544
 msgid "Detailed scan output appears here when available"
 msgstr ""
 
-#: src/ui/scan_view.py:539
+#: src/ui/scan_view.py:553
 msgid "Copy details"
 msgstr ""
 
-#: src/ui/scan_view.py:547
+#: src/ui/scan_view.py:561
 msgid "View details fullscreen"
 msgstr ""
 
-#: src/ui/scan_view.py:686
+#: src/ui/scan_view.py:700
 msgid "Error output:"
 msgstr ""
 
-#: src/ui/scan_view.py:692
+#: src/ui/scan_view.py:706
 msgid "Scan output:"
 msgstr ""
 
-#: src/ui/scan_view.py:709
+#: src/ui/scan_view.py:723
 msgid "Scan details copied to clipboard"
 msgstr ""
 
-#: src/ui/scan_view.py:710
+#: src/ui/scan_view.py:724
 msgid "Failed to copy scan details"
 msgstr ""
 
-#: src/ui/scan_view.py:712
+#: src/ui/scan_view.py:726
 msgid ""
 "Scan details are too large to copy. Use fullscreen to inspect the full "
 "output."
 msgstr ""
 
 #. Translators: use your language's quotation marks around {name}.
-#: src/ui/scan_view.py:891
+#: src/ui/scan_view.py:905
 #, python-brace-format
 msgid "Profile '{name}' has no valid targets"
 msgstr ""
 
-#: src/ui/scan_view.py:975
+#: src/ui/scan_view.py:989
 msgid "Clear all"
 msgstr ""
 
-#: src/ui/scan_view.py:998
+#: src/ui/scan_view.py:1012
 msgid "Drop files here or click Add Files/Folders"
 msgstr ""
 
-#: src/ui/scan_view.py:1075
+#: src/ui/scan_view.py:1089
 msgid "Select Files to Scan"
 msgstr ""
 
-#: src/ui/scan_view.py:1097
+#: src/ui/scan_view.py:1111
 msgid "Select Folders to Scan"
 msgstr ""
 
-#: src/ui/scan_view.py:1268
+#: src/ui/scan_view.py:1282
 msgid "Start Scan (F5)"
 msgstr ""
 
-#: src/ui/scan_view.py:1285 src/ui/scan_view.py:1941
+#: src/ui/scan_view.py:1299 src/ui/scan_view.py:2083
 msgid "Cancel the current scan"
 msgstr ""
 
 #. Translators: the em dash separates two parts; use the dash and spacing usual
 #. in your language.
-#: src/ui/scan_view.py:1524
+#: src/ui/scan_view.py:1697
 #, python-brace-format
 msgid "Target {current} of {total} — {pct}%{overflow}"
 msgstr ""
 
-#: src/ui/scan_view.py:1533
+#: src/ui/scan_view.py:1706
 #, python-brace-format
 msgid "Scanning... {pct}%{overflow}"
 msgstr ""
 
-#: src/ui/scan_view.py:1744
+#: src/ui/scan_view.py:1885
 #, python-brace-format
 msgid "View Results ({n} Threat)"
 msgid_plural "View Results ({n} Threats)"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/ui/scan_view.py:1821
+#: src/ui/scan_view.py:1962
 msgid "Virus database is not available"
 msgstr ""
 
-#: src/ui/scan_view.py:1937
+#: src/ui/scan_view.py:2079
 msgid "Cancel All"
 msgstr ""
 
-#: src/ui/scan_view.py:1938
+#: src/ui/scan_view.py:2080
 msgid "Cancel all remaining scans"
 msgstr ""
 
 #. Translators: the em dash separates two parts; use the dash and spacing
 #. usual in your language.
-#: src/ui/scan_view.py:1965
+#: src/ui/scan_view.py:2107
 #, python-brace-format
 msgid "Scanning {path} — File count pending"
 msgstr ""
 
 #. Translators: the em dash separates two parts; use the dash and spacing
 #. usual in your language.
-#: src/ui/scan_view.py:1974
+#: src/ui/scan_view.py:2116
 #, python-brace-format
 msgid "Scanning {count} items — File count pending"
 msgstr ""
 
-#: src/ui/scan_view.py:1978
+#: src/ui/scan_view.py:2120
 #, python-brace-format
 msgid "Scanning {count} items"
 msgstr ""
 
-#: src/ui/scan_view.py:2321 src/ui/scan_view.py:2375
+#: src/ui/scan_view.py:2471 src/ui/scan_view.py:2525
 #, python-brace-format
 msgid "Scan error: {detail}"
 msgstr ""
 
-#: src/ui/scan_view.py:2328 src/ui/scan_view.py:2378
+#: src/ui/scan_view.py:2478 src/ui/scan_view.py:2528
 msgid "Detailed scan error output"
 msgstr ""
 
-#: src/ui/scan_view.py:2329
+#: src/ui/scan_view.py:2479
 msgid "Detailed ClamAV output from the latest failed scan"
 msgstr ""
 
-#: src/ui/scan_view.py:2340
+#: src/ui/scan_view.py:2490
 #, python-brace-format
 msgid "Scan completed with status: {status}"
 msgstr ""
 
-#: src/ui/scan_view.py:2379
+#: src/ui/scan_view.py:2529
 msgid "Detailed application error output from the latest failed scan"
 msgstr ""
 
-#: src/ui/scan_view.py:2437
+#: src/ui/scan_view.py:2587
 msgid "Ready to scan"
 msgstr ""
 

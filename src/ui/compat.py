@@ -272,12 +272,17 @@ def present_about_dialog(
     issue_url: str | None = None,
     icon_name: str | None = None,
     license_type=None,
+    developers: list[str] | None = None,
+    translator_credits: str | None = None,
 ):
     """
     Present an about dialog using the newest supported API at runtime.
 
     Ubuntu 22.04 ships libadwaita 1.1.x, which does not provide
     Adw.AboutDialog. Fall back to Gtk.AboutDialog on older runtimes.
+
+    ``developers`` lines may carry a URL or ``<email>``; ``translator_credits``
+    is the translated "translator-credits" string, or None when untranslated.
     """
     if hasattr(Adw, "AboutDialog"):
         about = _create_adw_about_dialog(
@@ -289,6 +294,8 @@ def present_about_dialog(
             issue_url=issue_url,
             icon_name=icon_name,
             license_type=license_type,
+            developers=developers,
+            translator_credits=translator_credits,
         )
         if parent is not None:
             about.present(parent)
@@ -304,6 +311,8 @@ def present_about_dialog(
         website=website,
         icon_name=icon_name,
         license_type=license_type,
+        developers=developers,
+        translator_credits=translator_credits,
     )
     if parent is not None:
         about.set_transient_for(parent)
@@ -322,6 +331,8 @@ def _create_adw_about_dialog(
     issue_url: str | None,
     icon_name: str | None,
     license_type,
+    developers: list[str] | None = None,
+    translator_credits: str | None = None,
 ):
     """Create and configure an Adw.AboutDialog."""
     about = Adw.AboutDialog()
@@ -339,6 +350,10 @@ def _create_adw_about_dialog(
         about.set_issue_url(issue_url)
     if icon_name:
         about.set_application_icon(icon_name)
+    if developers:
+        about.set_developers(developers)
+    if translator_credits:
+        about.set_translator_credits(translator_credits)
     return about
 
 
@@ -351,13 +366,19 @@ def _create_gtk_about_dialog(
     website: str | None,
     icon_name: str | None,
     license_type,
+    developers: list[str] | None = None,
+    translator_credits: str | None = None,
 ):
     """Create and configure a Gtk.AboutDialog fallback."""
     about = Gtk.AboutDialog()
     about.set_program_name(app_name)
     about.set_version(version)
-    if developer_name:
+    if developers:
+        about.set_authors(developers)
+    elif developer_name:
         about.set_authors([developer_name])
+    if translator_credits:
+        about.set_translator_credits(translator_credits)
     if license_type is not None:
         about.set_license_type(license_type)
     if comments:

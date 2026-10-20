@@ -47,6 +47,7 @@ from .core.clamav_config import (
     write_config_with_elevation,
 )
 from .core.clamav_detection import resolve_clamd_conf_path
+from .core.credits import load_developers
 from .core.i18n import _, ngettext
 from .core.notification_manager import NotificationManager
 from .core.privileged_helper import (
@@ -855,16 +856,23 @@ class ClamUIApp(Adw.Application):
         """Handle about action - show about dialog."""
         from .ui.utils import resolve_icon_name
 
+        # Translators: replace with your name(s) and optionally <email> or a URL, one
+        # translator per line. Leave untranslated if you don't want to be credited.
+        translator_credits = _("translator-credits")
         present_about_dialog(
             self.props.active_window,
             app_name=self._app_name,
             version=self._version,
             developer_name="ClamUI Contributors",
             license_type=Gtk.License.MIT_X11,
-            comments="A graphical interface for ClamAV antivirus",
+            comments=_("A graphical interface for ClamAV antivirus"),
             website="https://github.com/linx-systems/clamui",
             issue_url="https://github.com/linx-systems/clamui/issues",
             icon_name=resolve_icon_name("security-high-symbolic"),
+            developers=load_developers(),
+            translator_credits=(
+                translator_credits if translator_credits != "translator-credits" else None
+            ),
         )
 
     def _on_tray_quick_scan(self):
